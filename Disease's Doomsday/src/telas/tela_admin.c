@@ -21,11 +21,27 @@ static UIButton adminBack = { { 490, 650, 300, 44 }, "VOLTAR", false, false };
 static Rectangle RowRect(int row)      { return (Rectangle){ 360, 250.0f + row * 56.0f, 560, 44 }; }
 static Rectangle MinusRect(int row)    { return (Rectangle){ 760, 250.0f + row * 56.0f, 44, 44 }; }
 static Rectangle PlusRect(int row)     { return (Rectangle){ 876, 250.0f + row * 56.0f, 44, 44 }; }
+static Rectangle UnlockWeaponsRect(void) { return (Rectangle){ 360, 520, 270, 38 }; }
+static Rectangle UnlockSkinsRect(void)   { return (Rectangle){ 650, 520, 270, 38 }; }
+static Rectangle AdminOffRect(void)      { return (Rectangle){ 440, 604, 400, 36 }; }
+
+static void DrawAdminToggle(Font font, Rectangle r, const char *label, bool active)
+{
+    Color fill = active ? Fade((Color){ 45, 190, 110, 255 }, 0.38f) : Fade((Color){ 120, 120, 130, 255 }, 0.22f);
+    Color line = active ? (Color){ 95, 255, 165, 255 } : Fade(WHITE, 0.45f);
+    const char *state = active ? "ON" : "OFF";
+    DrawRectangleRounded(r, 0.22f, 6, fill);
+    DrawRectangleRoundedLines(r, 0.22f, 6, line);
+    DrawTextEx(font, label, (Vector2){ r.x + 14, r.y + 10 }, 16.0f, 1.0f, WHITE);
+    DrawTextEx(font, state, (Vector2){ r.x + r.width - 46, r.y + 10 }, 16.0f, 1.0f, line);
+}
 
 static void ActivateAdminDefaults(GameState *game)
 {
     game->adminMode = true;
     game->adminApply = true;
+    game->adminUnlockWeapons = true;
+    game->adminUnlockSkins = true;
     if (game->adminMaxHp <= 0)  game->adminMaxHp = 300;
     if (game->adminDamage <= 0) game->adminDamage = 50;
     if (game->adminSpeed <= 0)  game->adminSpeed = 340.0f;
@@ -107,17 +123,20 @@ void DrawTelaAdmin(GameState *game, Font font)
             DrawTextEx(font, "+", (Vector2){ pl.x + 12, pl.y + 8 }, 26.0f, 1.0f, WHITE);
         }
 
+        DrawAdminToggle(font, UnlockWeaponsRect(), "DESBLOQUEAR ARMAS", game->adminUnlockWeapons);
+        DrawAdminToggle(font, UnlockSkinsRect(), "DESBLOQUEAR SKINS", game->adminUnlockSkins);
+
         const char *hint = "No jogo: [.] limpar fase  [H] cura  [L] +nivel  [P] +SUS  [K] so comuns  [ [ ] [ ] ] wave";
         Vector2 hSz = MeasureTextEx(font, hint, 15.0f, 1.0f);
-        DrawTextEx(font, hint, (Vector2){ SCREEN_WIDTH / 2.0f - hSz.x / 2.0f, 552.0f }, 15.0f, 1.0f, Fade(WHITE, 0.7f));
+        DrawTextEx(font, hint, (Vector2){ SCREEN_WIDTH / 2.0f - hSz.x / 2.0f, 574.0f }, 15.0f, 1.0f, Fade(WHITE, 0.7f));
 
         // Botao desativar
-        Rectangle off = { 440, 588, 400, 40 };
+        Rectangle off = AdminOffRect();
         DrawRectangleRounded(off, 0.25f, 6, Fade(RED, 0.25f));
         DrawRectangleRoundedLines(off, 0.25f, 6, RED);
         const char *offt = "DESATIVAR MODO ADMIN";
         Vector2 oSz = MeasureTextEx(font, offt, 18.0f, 1.0f);
-        DrawTextEx(font, offt, (Vector2){ SCREEN_WIDTH / 2.0f - oSz.x / 2.0f, off.y + 10 }, 18.0f, 1.0f, RED);
+        DrawTextEx(font, offt, (Vector2){ SCREEN_WIDTH / 2.0f - oSz.x / 2.0f, off.y + 8 }, 18.0f, 1.0f, RED);
     }
 
     DrawButton(adminBack, font, true);
@@ -213,12 +232,33 @@ void UpdateTelaAdmin(GameState *game, Vector2 mouse)
             game->adminApply = true;
         }
 
+        if (CheckCollisionPointRec(mouse, UnlockWeaponsRect()))
+        {
+            game->adminUnlockWeapons = !game->adminUnlockWeapons;
+            game->adminApply = true;
+            if (game->adminUnlockWeapons)
+            {
+                game->maxWeaponUnlocked = 4;
+                if (game->totalEnemiesKilled < BIOBLADE_UNLOCK_KILLS)
+                    game->totalEnemiesKilled = BIOBLADE_UNLOCK_KILLS;
+                game->bioBladeAnnounced = true;
+            }
+        }
+
+        if (CheckCollisionPointRec(mouse, UnlockSkinsRect()))
+        {
+            game->adminUnlockSkins = !game->adminUnlockSkins;
+            game->adminApply = true;
+        }
+
         // Botao desativar
-        Rectangle off = { 440, 588, 400, 40 };
+        Rectangle off = AdminOffRect();
         if (CheckCollisionPointRec(mouse, off))
         {
             game->adminMode = false;
             game->adminApply = false;
+            game->adminUnlockWeapons = false;
+            game->adminUnlockSkins = false;
         }
     }
 }

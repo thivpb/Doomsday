@@ -30,7 +30,8 @@ float DrawTextWrapped(Font font, const char *text, Rectangle area, float fontSiz
 // Avança o typewriter e processa input (SPACE/ENTER/Q/clique) de uma página.
 // Retorna 0 = digitando/aguardando; 1 = avançou de página; 2 = concluiu (última
 // página confirmada). Compartilhado pela transição pós-Mundo 1 e pela tela final.
-int ScientistDialogAdvance(DialogState *dlg, const char *pageText, int pageCount);
+int ScientistDialogAdvance(DialogState *dlg, const char *pageText, int pageCount,
+                           int voiceScope, float sfxVolume);
 // Desenha a cena: cientista em destaque (círculo grande, mesma arte do tutorial)
 // + caixa de diálogo grande com efeito typewriter (o texto nunca vaza). `entry`
 // (0..1) anima a entrada; `header` rotula a transmissão.

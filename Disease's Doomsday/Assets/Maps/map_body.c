@@ -973,23 +973,13 @@ static void DrawMainVessels(void)
 }
 
 // ============================================================================
-// DrawFocusEffects — efeitos procedurais que ficam SOBRE a arte (imagem ou
-// fallback): tinte discreto da região infectada + anel pulsante do órgão da
-// fase. SEM redesenhar órgãos/rótulos (a arte já os contém). Tudo translúcido.
+// DrawFocusEffects — mantido como ponto de extensão, mas sem desenho. O antigo
+// anel pulsante sobre o órgão em foco parecia um círculo de energia decorativo
+// solto no mapa, então foi removido para preservar a leitura anatômica.
 // ============================================================================
 static void DrawFocusEffects(int currentWorld, int wave, float time, BodyRegion focus, float pulse)
 {
-    Vector2 fc = MapBody_GetRegionCenter(focus);
-    Color ringCol = (focus == REGION_LUNGS)       ? (Color){ 120, 220, 255, 255 }
-                  : (focus == REGION_BLOODSTREAM)  ? (Color){ 255, 120, 130, 255 }
-                                                   : (Color){ 255, 225, 120, 255 };
-    // Indicação discreta da região infectada (tinte suave pulsante sobre o órgão).
-    DrawCircleV(fc, MBR(300.0f), Fade(ringCol, 0.05f + 0.05f * pulse));
-    // Destaque pulsante do órgão da fase (anel translúcido = marcador do objetivo).
-    float ringR = MBR(320.0f) + pulse * MBR(26.0f);
-    DrawCircleLines((int)fc.x, (int)fc.y, ringR, Fade(ringCol, 0.25f + 0.20f * pulse));
-    DrawCircleLines((int)fc.x, (int)fc.y, ringR + MBR(8.0f), Fade(ringCol, 0.12f));
-    (void)currentWorld; (void)wave; (void)time;
+    (void)currentWorld; (void)wave; (void)time; (void)focus; (void)pulse;
 }
 
 // ============================================================================

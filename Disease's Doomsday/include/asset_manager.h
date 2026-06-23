@@ -28,6 +28,8 @@ typedef struct GameAssets {
     Sound sfxMenuClick;
     Sound sfxMenuHover;
     Sound sfxQuizHover;
+    Sound sfxArmorEquip;
+    Sound sfxScientistVoice;
 
     // Feedback legado sem arquivo dedicado no pacote novo
     Sound sfxPickup;
@@ -57,5 +59,15 @@ void PlayEnemyDamageSfx(int enemyType, int enemyTier);
 
 // Aplica o ganho global de efeitos preservando o volume relativo de cada SFX.
 void ApplySfxVolume(float volume);
+
+// Voz do cientista: sincroniza o MP3 com uma página de typewriter e interrompe
+// imediatamente quando o texto é revelado/pulado ou a fala termina.
+float ScientistVoiceCharDelay(int totalLen, float fallbackDelay);
+void SyncScientistVoice(int scope, int page, int charShown, int totalLen, float sfxVolume);
+void StopScientistVoice(void);
+
+#define SCIENTIST_VOICE_TUTORIAL 1
+#define SCIENTIST_VOICE_WORLD1   2
+#define SCIENTIST_VOICE_VICTORY  3
 
 #endif // ASSET_MANAGER_H

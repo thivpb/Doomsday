@@ -4,6 +4,9 @@
 #include <stdio.h>
 
 GameAssets g_assets = {0};
+static int g_scientistVoiceScope = -1;
+static int g_scientistVoicePage = -1;
+static float g_scientistVoiceDuration = 0.0f;
 
 static Sound LoadGameSound(const char *path, float volume)
 {
@@ -68,6 +71,15 @@ void LoadGameAssets(void)
     g_assets.sfxMenuClick         = LoadGameSound("Assets/SFX/ClickinsoundMenu.mp3",             0.55f);
     g_assets.sfxMenuHover         = LoadGameSound("Assets/SFX/HoveringMenuButtons.mp3",          0.34f);
     g_assets.sfxQuizHover         = LoadGameSound("Assets/SFX/QuizPage_hoveringIN_OUT.mp3",      0.40f);
+    g_assets.sfxArmorEquip        = LoadGameSound("Assets/SFX/ArmorEquip.mp3",                   0.24f);
+    g_assets.sfxScientistVoice    = LoadGameSound("Assets/SFX/fala_cientista_maluco_serio.mp3",  0.80f);
+    if (g_assets.sfxScientistVoice.frameCount > 0 &&
+        g_assets.sfxScientistVoice.stream.sampleRate > 0)
+    {
+        g_scientistVoiceDuration =
+            (float)g_assets.sfxScientistVoice.frameCount /
+            (float)g_assets.sfxScientistVoice.stream.sampleRate;
+    }
 
     // O pacote não contém sons próprios para coleta/level-up e morte.
     g_assets.sfxPickup = LoadGameSound("Assets/Musica/Ataque_Pulse.mp3", 0.45f);
@@ -111,6 +123,8 @@ void UnloadGameAssets(void)
     UnloadGameSound(g_assets.sfxMenuClick);
     UnloadGameSound(g_assets.sfxMenuHover);
     UnloadGameSound(g_assets.sfxQuizHover);
+    UnloadGameSound(g_assets.sfxArmorEquip);
+    UnloadGameSound(g_assets.sfxScientistVoice);
     UnloadGameSound(g_assets.sfxPickup);
     UnloadGameSound(g_assets.sfxDeath);
 
@@ -172,6 +186,78 @@ void ApplySfxVolume(float volume)
     SetLoadedSoundVolume(g_assets.sfxMenuClick,        0.55f * volume);
     SetLoadedSoundVolume(g_assets.sfxMenuHover,        0.34f * volume);
     SetLoadedSoundVolume(g_assets.sfxQuizHover,        0.40f * volume);
+    SetLoadedSoundVolume(g_assets.sfxArmorEquip,       0.24f * volume);
+    SetLoadedSoundVolume(g_assets.sfxScientistVoice,   0.80f * volume);
     SetLoadedSoundVolume(g_assets.sfxPickup,           0.45f * volume);
     SetLoadedSoundVolume(g_assets.sfxDeath,            0.75f * volume);
+}
+
+static float ClampFloat(float value, float minValue, float maxValue)
+{
+    if (value < minValue) return minValue;
+    if (value > maxValue) return maxValue;
+    return value;
+}
+
+static float ScientistVoiceTargetDuration(int totalLen)
+{
+    if (totalLen <= 0) return 0.0f;
+
+    // O arquivo tem uma fala de ~15s. Cada página usa um trecho do começo do MP3
+    // com pitch ajustado para terminar junto do typewriter, em vez de continuar
+    // falando depois que o texto acabou.
+    float target = 0.65f + (float)totalLen * 0.043f;
+    float maxDuration = (g_scientistVoiceDuration > 0.8f) ? g_scientistVoiceDuration - 0.35f : 12.0f;
+    return ClampFloat(target, 2.4f, maxDuration);
+}
+
+float ScientistVoiceCharDelay(int totalLen, float fallbackDelay)
+{
+    if (g_assets.sfxScientistVoice.frameCount <= 0 || totalLen <= 0)
+        return fallbackDelay;
+    return ScientistVoiceTargetDuration(totalLen) / (float)totalLen;
+}
+
+void StopScientistVoice(void)
+{
+    if (g_assets.sfxScientistVoice.frameCount > 0)
+    {
+        StopSound(g_assets.sfxScientistVoice);
+        SetSoundPitch(g_assets.sfxScientistVoice, 1.0f);
+    }
+    g_scientistVoiceScope = -1;
+    g_scientistVoicePage = -1;
+}
+
+void SyncScientistVoice(int scope, int page, int charShown, int totalLen, float sfxVolume)
+{
+    if (g_assets.sfxScientistVoice.frameCount <= 0 || totalLen <= 0 || charShown >= totalLen)
+    {
+        StopScientistVoice();
+        return;
+    }
+
+    if (sfxVolume < 0.0f) sfxVolume = 0.0f;
+    if (sfxVolume > 1.0f) sfxVolume = 1.0f;
+
+    float target = ScientistVoiceTargetDuration(totalLen);
+    float pitch = (target > 0.01f && g_scientistVoiceDuration > 0.01f)
+                ? g_scientistVoiceDuration / target : 1.0f;
+    pitch = ClampFloat(pitch, 0.85f, 2.65f);
+
+    bool newPage = (g_scientistVoiceScope != scope || g_scientistVoicePage != page);
+    if (newPage || !IsSoundPlaying(g_assets.sfxScientistVoice))
+    {
+        StopSound(g_assets.sfxScientistVoice);
+        SetSoundPitch(g_assets.sfxScientistVoice, pitch);
+        SetSoundVolume(g_assets.sfxScientistVoice, 0.80f * sfxVolume);
+        PlaySound(g_assets.sfxScientistVoice);
+        g_scientistVoiceScope = scope;
+        g_scientistVoicePage = page;
+    }
+    else
+    {
+        SetSoundPitch(g_assets.sfxScientistVoice, pitch);
+        SetSoundVolume(g_assets.sfxScientistVoice, 0.80f * sfxVolume);
+    }
 }

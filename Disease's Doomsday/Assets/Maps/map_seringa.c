@@ -39,8 +39,8 @@ static void DrawSyringeVoid(float time)
 
     // 2) Luz distante pulsante (glows suaves) — “iluminação ao fundo”.
     float p = 0.5f + 0.5f * sinf(time * 0.7f);
-    DrawCircleGradient((Vector2){ 320.0f, -120.0f }, 520.0f + p * 40.0f, Fade((Color){ 40, 70, 150, 255 }, 0.10f + 0.04f * p), BLANK);
-    DrawCircleGradient((Vector2){ 1180.0f, 700.0f }, 600.0f, Fade((Color){ 90, 40, 130, 255 }, 0.09f), BLANK);
+    DrawCircleGradient(320, -120, 520.0f + p * 40.0f, Fade((Color){ 40, 70, 150, 255 }, 0.10f + 0.04f * p), BLANK);
+    DrawCircleGradient(1180, 700, 600.0f, Fade((Color){ 90, 40, 130, 255 }, 0.09f), BLANK);
 
     // 3) Membranas/células desfocadas (blobs grandes, baixa opacidade), em
     //    posições determinísticas com leve respiração.

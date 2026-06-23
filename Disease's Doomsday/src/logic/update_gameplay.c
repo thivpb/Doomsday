@@ -286,7 +286,7 @@ void RegisterEnemyKill(GameState *game, Enemy *enemy)
     game->totalEnemiesKilled++;
     if (game->enemiesRemaining > 0) game->enemiesRemaining--;
 
-    // DESBLOQUEIO DA LÂMINA BIOELÉTRICA (arma 5) por abates — feedback único e
+    // DESBLOQUEIO DA LÂMINA BIOELÉTRICA por abates — feedback único e
     // claro. A arma fica disponível para o resto da campanha (estado deriva de
     // totalEnemiesKilled, que é salvo, então o desbloqueio sobrevive a save/fase).
     if (!game->bioBladeAnnounced && !game->inTutorial &&
@@ -295,7 +295,7 @@ void RegisterEnemyKill(GameState *game, Enemy *enemy)
         game->bioBladeAnnounced = true;
         WeaponInfo wbi = GetWeaponInfo(WEAPON_BIOBLADE);
         ShowBanner(game, TextFormat("NOVA ARMA: %s", wbi.name),
-                   "Tecla [5] desbloqueada - quebra capsideos virais", wbi.color, 3.6f);
+                   "Slot [1]: aperte 1 para alternar e quebrar capsideos", wbi.color, 3.6f);
         SpawnParticleExplosion(game, game->player.position, wbi.color, 22, 60.0f, 200.0f, 4.0f, 0.6f);
         if (g_assets.sfxPickup.frameCount > 0) PlaySound(g_assets.sfxPickup);
     }
@@ -605,6 +605,120 @@ static void DetonateRNAGrenade(GameState *game, Vector2 center)
     HitInfectionCores(game, center, radius, dmg);
 }
 
+static void DetonateBioMine(GameState *game, BioMine *mine)
+{
+    if (!mine || !mine->active) return;
+
+    Vector2 center = mine->position;
+    int dmg = mine->damage;
+    mine->active = false;
+
+    const float radius = 210.0f;
+    SpawnParticleExplosion(game, center, (Color){ 90, 255, 180, 255 }, 30, 90.0f, 320.0f, 5.0f, 0.75f);
+    SpawnParticleExplosion(game, center, (Color){ 255, 90, 180, 255 }, 18, 70.0f, 230.0f, 4.0f, 0.55f);
+    game->screenShake = 0.55f;
+    PlaySound(g_assets.sfxGrenadeExplode);
+
+    int collIndices[MAX_ENEMIES];
+    int collCount = GetEnemiesInRadius(game, center, radius, collIndices);
+    for (int k = 0; k < collCount; k++)
+    {
+        int eIdx = collIndices[k];
+        Enemy *e = &game->enemies[eIdx];
+        if (!e->active || e->state == DEATH || e->isTutorialEnemy) continue;
+
+        if (e->shieldActive)
+        {
+            e->shieldHp -= dmg;
+            if (e->shieldHp <= 0)
+            {
+                e->shieldHp = 0;
+                e->shieldActive = false;
+                SpawnParticleExplosion(game, e->position, (Color){ 150, 220, 255, 255 }, 14, 70.0f, 210.0f, 4.0f, 0.5f);
+            }
+        }
+
+        int applied = ApplyPlayerDamageToEnemy(game, e, dmg, false);
+        if (applied <= 0) continue;
+        e->poisonTimer = 2.0f;
+        SpawnDamageText(game, e->position, applied, (Color){ 90, 255, 180, 255 });
+        if (e->hp <= 0)
+        {
+            e->hp = 0;
+            e->state = DEATH;
+            e->cooldownTimer = 0.5f;
+            SpawnParticleExplosion(game, e->position, GOLD, 18, 50.0f, 150.0f, 4.0f, 0.7f);
+            if (!game->inTutorial) RegisterEnemyKill(game, e);
+        }
+        else
+        {
+            e->state = HURT;
+            e->cooldownTimer = 0.25f;
+        }
+    }
+
+    HitInfectionCores(game, center, radius, dmg);
+}
+
+void PlantBioMine(GameState *game, Vector2 pos, int dmg)
+{
+    int slot = -1;
+    for (int i = 0; i < MAX_BIOMINES; i++)
+    {
+        if (!game->bioMines[i].active) { slot = i; break; }
+    }
+    if (slot < 0)
+    {
+        float oldestPulse = game->bioMines[0].pulse;
+        slot = 0;
+        for (int i = 1; i < MAX_BIOMINES; i++)
+        {
+            if (game->bioMines[i].pulse > oldestPulse)
+            {
+                oldestPulse = game->bioMines[i].pulse;
+                slot = i;
+            }
+        }
+    }
+
+    game->bioMines[slot].position = pos;
+    game->bioMines[slot].active = true;
+    game->bioMines[slot].armTimer = 0.18f;
+    game->bioMines[slot].pulse = 0.0f;
+    game->bioMines[slot].damage = dmg;
+    SpawnParticleExplosion(game, pos, (Color){ 90, 255, 180, 255 }, 12, 35.0f, 110.0f, 3.0f, 0.35f);
+}
+
+bool TriggerBioMinesInRadius(GameState *game, Vector2 pos, float radius)
+{
+    bool triggered = false;
+    float r2 = radius * radius;
+    for (int i = 0; i < MAX_BIOMINES; i++)
+    {
+        BioMine *mine = &game->bioMines[i];
+        if (!mine->active || mine->armTimer > 0.0f) continue;
+        if (Vector2DistanceSqr(pos, mine->position) <= r2)
+        {
+            DetonateBioMine(game, mine);
+            triggered = true;
+        }
+    }
+    return triggered;
+}
+
+bool DetonateAllBioMines(GameState *game)
+{
+    bool triggered = false;
+    for (int i = 0; i < MAX_BIOMINES; i++)
+    {
+        BioMine *mine = &game->bioMines[i];
+        if (!mine->active) continue;
+        DetonateBioMine(game, mine);
+        triggered = true;
+    }
+    return triggered;
+}
+
 // ============================================================================
 // APLICA O EFEITO DE UM POWER-UP / ITEM COLETADO (fonte única)
 // Centraliza os efeitos para os dois pontos de coleta (gameplay e tutorial),
@@ -676,7 +790,7 @@ void InitGame(GameState *game)
     int tempSkin = 0, tempWSkin = 0;
     int tempCos[COS_SLOT_COUNT] = { 0 };   // cosméticos do guarda-roupa (preferência)
     int tempDiff = DIFFICULTY_MEDIUM;
-    bool tAdmin = false, tAdminApply = false;
+    bool tAdmin = false, tAdminApply = false, tAdminUnlockWeapons = false, tAdminUnlockSkins = false;
     int tAdmMaxHp = 0, tAdmDmg = 0, tAdmLevel = 0, tAdmSus = 0;
     float tAdmSpeed = 0.0f;
     if (game != NULL)
@@ -689,6 +803,7 @@ void InitGame(GameState *game)
         for (int s = 0; s < COS_SLOT_COUNT; s++) tempCos[s] = game->player.cosmetics[s];
         tempDiff = game->difficulty;
         tAdmin = game->adminMode; tAdminApply = game->adminApply;
+        tAdminUnlockWeapons = game->adminUnlockWeapons; tAdminUnlockSkins = game->adminUnlockSkins;
         tAdmMaxHp = game->adminMaxHp; tAdmDmg = game->adminDamage;
         tAdmLevel = game->adminLevel; tAdmSus = game->adminSus; tAdmSpeed = game->adminSpeed;
     }
@@ -699,6 +814,7 @@ void InitGame(GameState *game)
     game->difficulty = tempDiff;
     ApplyDifficulty(game);
     game->adminMode = tAdmin; game->adminApply = tAdminApply;
+    game->adminUnlockWeapons = tAdminUnlockWeapons; game->adminUnlockSkins = tAdminUnlockSkins;
     game->adminMaxHp = tAdmMaxHp; game->adminDamage = tAdmDmg;
     game->adminLevel = tAdmLevel; game->adminSus = tAdmSus; game->adminSpeed = tAdmSpeed;
 
@@ -752,6 +868,7 @@ void InitGame(GameState *game)
     game->timeElapsed = 0.0f;
     game->screenShake = 0.0f;
     game->slashAnimTimer = 0.0f;
+    game->slashAnimDir = (Vector2){ 1.0f, 0.0f };
 
     // Campanha começa sempre no Mundo das Bactérias
     game->currentWorld = WORLD_BACTERIA;
@@ -783,6 +900,13 @@ void InitGame(GameState *game)
         game->maxWeaponUnlocked = 1;
         for (int w = 2; w <= 4; w++)
             if (game->player.level >= WeaponUnlockLevel(w)) game->maxWeaponUnlocked = w;
+        if (game->adminUnlockWeapons)
+        {
+            game->maxWeaponUnlocked = 4;
+            if (game->totalEnemiesKilled < BIOBLADE_UNLOCK_KILLS)
+                game->totalEnemiesKilled = BIOBLADE_UNLOCK_KILLS;
+            game->bioBladeAnnounced = true;
+        }
     }
 
     // Inicia o Tutorial (Seringa de Vacina) em vez de ir diretamente à onda 1
@@ -869,7 +993,7 @@ void UpdateTutorial(GameState *game, float delta)
         int totalLen = strlen(l1) + strlen(l2) + strlen(l3);
 
         // --- Typewriter: revela um caractere a cada ~0.03s ---
-        float typewriterSpeed = 0.030f; // segundos por caractere
+        float typewriterSpeed = ScientistVoiceCharDelay(totalLen, 0.030f); // segundos por caractere
         dlg->charTimer += delta;
         if (dlg->charTimer >= typewriterSpeed)
         {
@@ -879,6 +1003,9 @@ void UpdateTutorial(GameState *game, float delta)
                 dlg->charShown++;
             }
         }
+        SyncScientistVoice(SCIENTIST_VOICE_TUTORIAL,
+                           game->tutorialStep * 10 + dlg->page,
+                           dlg->charShown, totalLen, game->sfxVolume);
 
         // --- Q ou ESPAÇO avançam o diálogo ---
         if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_SPACE))
@@ -887,9 +1014,11 @@ void UpdateTutorial(GameState *game, float delta)
             {
                 // Se o texto ainda não terminou de aparecer: pula pro fim
                 dlg->charShown = totalLen;
+                StopScientistVoice();
             }
             else
             {
+                StopScientistVoice();
                 int maxPages = DIALOG_PAGES_PER_STEP[game->tutorialStep];
 
                 // Verifica se ainda faltam páginas no passo atual
@@ -982,6 +1111,12 @@ void UpdateTutorial(GameState *game, float delta)
     if (game->player.attackBoostTimer > 0.0f) game->player.attackBoostTimer -= delta;
     // BUGFIX: poison/slow não eram decrementados no tutorial e vazavam para a gameplay
     if (game->player.slowTimer > 0.0f) game->player.slowTimer -= delta;
+    for (int i = 0; i < MAX_BIOMINES; i++)
+    {
+        if (!game->bioMines[i].active) continue;
+        game->bioMines[i].pulse += delta;
+        if (game->bioMines[i].armTimer > 0.0f) game->bioMines[i].armTimer -= delta;
+    }
     if (game->player.poisonTimer > 0.0f)
     {
         game->player.poisonTimer -= delta;
@@ -1485,9 +1620,13 @@ void UpdateGameplay(GameState *game, float delta)
     if (IsKeyPressed(KEY_TWO))   wpnRequest = 2;
     if (IsKeyPressed(KEY_THREE)) wpnRequest = 3;
     if (IsKeyPressed(KEY_FOUR))  wpnRequest = 4;
-    if (IsKeyPressed(KEY_FIVE))  wpnRequest = WEAPON_BIOBLADE; // Lâmina Bioelétrica (abates)
     if (wpnRequest != 0)
     {
+        if (wpnRequest == 1 && WeaponUnlocked(game, WEAPON_BIOBLADE) &&
+            (game->player.equippedWeapon == 1 || game->player.equippedWeapon == WEAPON_BIOBLADE))
+        {
+            wpnRequest = (game->player.equippedWeapon == WEAPON_BIOBLADE) ? 1 : WEAPON_BIOBLADE;
+        }
         WeaponInfo wi = GetWeaponInfo(wpnRequest);
         if (WeaponUnlocked(game, wpnRequest))
         {
@@ -1516,6 +1655,12 @@ void UpdateGameplay(GameState *game, float delta)
         if (game->player.hp > game->player.maxHp) game->player.hp = game->player.maxHp;
         PlaySound(g_assets.sfxPickup);
         SpawnParticleExplosion(game, game->player.position, GREEN, 20, 50.0f, 150.0f, 4.0f, 0.8f);
+    }
+
+    if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
+    {
+        if (DetonateAllBioMines(game))
+            ShowBanner(game, "MINAS DE RNA DETONADAS", "Explosao em area ativada pelo botao direito", (Color){ 90, 255, 180, 255 }, 1.6f);
     }
 
     // Segurar (Down) em vez de pressionar (Pressed): permite fogo contínuo nas
@@ -2138,6 +2283,14 @@ void UpdateGameplay(GameState *game, float delta)
             if (game->projectiles[i].isPlayerProjectile) {
                 // Diminui o tempo de vida para explosivos
                 game->projectiles[i].lifeTime -= delta;
+
+                if (game->projectiles[i].type != PROJ_PLAYER_GRENADE &&
+                    TriggerBioMinesInRadius(game, game->projectiles[i].position, 22.0f))
+                {
+                    if (game->projectiles[i].type != PROJ_PLAYER_BFG)
+                        game->projectiles[i].active = false;
+                }
+                if (!game->projectiles[i].active) continue;
                 
                 // Granada
                 if (game->projectiles[i].type == PROJ_PLAYER_GRENADE && game->projectiles[i].lifeTime <= 0.0f) {
@@ -2641,7 +2794,7 @@ void CarregarJogoSlot(GameState *game, int slot)
         game->player.healthPotions = (potions >= 0 && potions <= 99) ? potions : 3;
         game->player.susPoints = (sus >= 0) ? sus : 0;
         // BUGFIX: após carregar um save, equippedWeapon ficava 0 e o ataque não fazia nada
-        game->player.equippedWeapon = (weapon >= 1 && weapon <= 4) ? weapon : 1;
+        game->player.equippedWeapon = (weapon >= 1 && weapon <= WEAPON_COUNT) ? weapon : 1;
         game->player.skinId = (skin >= 0 && skin < SKIN_COUNT) ? skin : 0;
         game->player.weaponSkinId = (wskin >= 0 && wskin < WEAPON_SKIN_COUNT) ? wskin : 0;
 
@@ -2746,6 +2899,7 @@ void RequestLoadingScreen(GameState *game, LoadTarget target, float duration)
     for (int i = 0; i < MAX_POWERUPS; i++) game->powerUps[i].active = false;
     InitParticlePool(game);
     for (int i = 0; i < MAX_PROJECTILES; i++) game->projectiles[i].active = false;
+    for (int i = 0; i < MAX_BIOMINES; i++) game->bioMines[i].active = false;
     for (int i = 0; i < MAX_DAMAGE_TEXTS; i++) game->damageTexts[i].active = false;
     // Limpa o escudo/núcleos do chefe ao trocar de cena
     for (int i = 0; i < MAX_CORES; i++) game->cores[i].active = false;
@@ -2921,7 +3075,7 @@ void GetTutorialDialogText(int step, int page, const char **line1, const char **
         if (page == 0)
         {
             *line1 = "Excelente! Assinatura do patogeno registrada com sucesso.";
-            *line2 = "No organismo: troque de arma com 1-5 e use pocao de vida com E.";
+            *line2 = "No organismo: troque de arma com 1-4 e use pocao de vida com E.";
             *line3 = "[Q ou ESPACO para continuar]";
         }
         else
@@ -2965,7 +3119,8 @@ void UpdateTelaTransicao(GameState *game)
     if (game->uiAnimTimer < 0.35f) return; // breve espera de entrada antes de aceitar input
 
     int r = ScientistDialogAdvance(&game->sceneDialog,
-                                   WORLD1_PAGES[game->sceneDialog.page], WORLD1_PAGE_COUNT);
+                                   WORLD1_PAGES[game->sceneDialog.page], WORLD1_PAGE_COUNT,
+                                   SCIENTIST_VOICE_WORLD1, game->sfxVolume);
     if (r != 2) return; // ainda digitando ou lendo as paginas
 
     // Diálogo concluido: inicia o Mundo dos Vírus mantendo nível, armas e skins.
@@ -2978,6 +3133,7 @@ void UpdateTelaTransicao(GameState *game)
     for (int i = 0; i < MAX_ENEMIES; i++)    game->enemies[i].active = false;
     for (int i = 0; i < MAX_POWERUPS; i++)   game->powerUps[i].active = false;
     for (int i = 0; i < MAX_PROJECTILES; i++) game->projectiles[i].active = false;
+    for (int i = 0; i < MAX_BIOMINES; i++) game->bioMines[i].active = false;
     for (int i = 0; i < MAX_CORES; i++)      game->cores[i].active = false;
     game->bossShieldActive = false;
     game->bossCoresSpawned = false;

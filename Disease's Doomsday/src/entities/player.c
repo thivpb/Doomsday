@@ -24,38 +24,51 @@ void PlayerAttack(GameState *game, Vector2 worldMousePos)
     Color skinSec  = WeaponSkinSecondary(game->player.weaponSkinId);
 
     if (wpn == 1 || wpn == WEAPON_BIOBLADE) {
-        // Ambas as armas melee (Espada-Seringa e Lâmina Bioelétrica) usam o mesmo
-        // golpe em área 360°; a Lâmina adiciona o bônus anti-capsídeo abaixo.
-        // Define cooldown base
-        game->player.attackCooldown = 0.22f;
+        Vector2 aimDir = Vector2Normalize(Vector2Subtract(worldMousePos, game->player.position));
+        if (aimDir.x == 0.0f && aimDir.y == 0.0f)
+            aimDir = (Vector2){ (float)game->player.facingDir, 0.0f };
+
+        int combo = game->meleeComboStep % ((wpn == WEAPON_BIOBLADE) ? 3 : 2);
+        int animKind = (combo == 0) ? 1 : (combo == 1) ? 2 : 3;
+        float hitRadius = (animKind == 1) ? 175.0f : (animKind == 2) ? 155.0f : 145.0f;
+
+        game->player.attackCooldown = (animKind == 3) ? 0.30f : 0.24f;
         PlayWeaponAttackSfx(wpn);
 
-        // Configura animação de ataque (Slash)
-        game->slashAnimTimer = 0.22f;
+        game->slashAnimTimer = game->player.attackCooldown;
         game->slashAnimPos = game->player.position;
-        game->slashAnimRadius = 140.0f;
+        game->slashAnimRadius = hitRadius;
+        game->slashAnimKind = animKind;
+        game->slashAnimDir = aimDir;
+        game->meleeComboStep++;
 
         // Efeitos visuais: explosão de partículas de slash (cores da skin da arma)
-        SpawnParticleExplosion(game, game->player.position, skinSec, 12, 100.0f, 250.0f, 4.0f, 0.4f);
-        SpawnParticleExplosion(game, game->player.position, skinPrim, 8, 150.0f, 300.0f, 3.5f, 0.35f);
+        SpawnParticleExplosion(game, game->player.position, skinSec, (animKind == 3) ? 18 : 10, 100.0f, 250.0f, 4.0f, 0.4f);
+        SpawnParticleExplosion(game, game->player.position, skinPrim, (animKind == 1) ? 6 : 10, 150.0f, 300.0f, 3.5f, 0.35f);
 
         // Câmera dá uma leve chacoalhada no ataque
-        game->screenShake = 0.25f;
+        game->screenShake = (animKind == 3) ? 0.38f : 0.22f;
 
-        // BUGFIX: o golpe agora acerta em 360 graus, exatamente como o efeito
-        // visual circular sugere. Antes era um cone de +-90 graus na direção
-        // do mouse — atacando com ESPAÇO com o mouse "do lado errado", o
-        // jogador errava a bactéria mesmo colado nela.
+        TriggerBioMinesInRadius(game, game->player.position, hitRadius + 18.0f);
+
         int collIndices[MAX_ENEMIES];
-        int collCount = GetEnemiesInRadius(game, game->player.position, game->slashAnimRadius, collIndices);
+        int collCount = GetEnemiesInRadius(game, game->player.position, hitRadius, collIndices);
 
         for (int k = 0; k < collCount; k++)
         {
             int i = collIndices[k];
             if (!game->enemies[i].active || game->enemies[i].state == DEATH) continue;
 
+            Vector2 toEnemy = Vector2Subtract(game->enemies[i].position, game->player.position);
+            float dist = Vector2Length(toEnemy);
+            Vector2 enemyDir = (dist > 0.01f) ? Vector2Scale(toEnemy, 1.0f / dist) : aimDir;
+            if (animKind == 1 && dist > 58.0f && Vector2DotProduct(aimDir, enemyDir) < 0.62f) continue;
+            if (animKind == 2 && dist > 65.0f && Vector2DotProduct(aimDir, enemyDir) < -0.20f) continue;
+
             // Acertou! Causa dano (com proteções anti-melt para chefes/escudo)
             int danoTotal = 15 + danoBase;
+            if (animKind == 1) danoTotal += 5;
+            if (animKind == 3) danoTotal += 8;
             // Lâmina Bioelétrica (arma 5): descarrega corrente no capsídeo — dano
             // muito maior contra o ESCUDO viral, quebrando-o bem mais rápido. Vale
             // em QUALQUER Mundo (a arma é desbloqueada por abates na campanha).
@@ -112,7 +125,7 @@ void PlayerAttack(GameState *game, Vector2 worldMousePos)
             }
         }
         // O golpe em área também destroi os Núcleos de Infecção do escudo do chefe
-        HitInfectionCores(game, game->player.position, game->slashAnimRadius, 15 + danoBase);
+        HitInfectionCores(game, game->player.position, hitRadius, 15 + danoBase);
     }
     else if (wpn == 2) {
         // Cadência (Fase 5): 0.28s — antes 0.15s permitia spray contínuo. Agora
@@ -126,9 +139,13 @@ void PlayerAttack(GameState *game, Vector2 worldMousePos)
         SpawnProjectile(game, game->player.position, worldMousePos, rt, 8 + danoBase);
     }
     else if (wpn == 3) {
-        game->player.attackCooldown = 1.5f;
+        game->player.attackCooldown = 0.75f;
         PlayWeaponAttackSfx(wpn);
-        SpawnProjectile(game, game->player.position, worldMousePos, PROJ_PLAYER_GRENADE, 40 + danoBase);
+        Vector2 dir = Vector2Normalize(Vector2Subtract(worldMousePos, game->player.position));
+        if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ (float)game->player.facingDir, 0.0f };
+        Vector2 minePos = Vector2Add(game->player.position, Vector2Scale(dir, 52.0f));
+        PlantBioMine(game, minePos, 48 + danoBase);
+        game->screenShake = 0.12f;
     }
     else if (wpn == 4) {
         game->player.attackCooldown = 5.0f;
@@ -165,9 +182,9 @@ WeaponInfo GetWeaponInfo(int weapon)
                 "+60% de dano contra BACTERIAS", "Bacteriofagos sao virus que infectam bacterias; otimo no Mundo 1.",
                 8, "Rapida (0.28s)", 0.28f, 2, 2, (Color){ 120, 255, 160, 255 }, 1050.0f };
         case 3: return (WeaponInfo){
-            "Desestabilizador de RNA", "Granada que ataca o RNA em area.",
-            "Dano em area + VENENO (ignora capsideo)", "Controle de grupos; forte vs. bacterias e virus.",
-            40, "Lenta", 1.5f, 3, 3, (Color){ 255, 140, 40, 255 } };
+            "Desestabilizador de RNA", "Planta minas biológicas no chão.",
+            "Mouse 2 detona todas as minas", "Controle tatico: prepare armadilhas e exploda hordas no momento certo.",
+            48, "Tatica (0.75s)", 0.75f, 3, 3, (Color){ 90, 255, 180, 255 } };
         case 4: return (WeaponInfo){
             "BFG Imunologico", "Projetil pesado que ATRAVESSA inimigos.",
             "Perfurante (atravessa todos)", "Limpa fileiras inteiras; guarde para hordas e chefe.",
@@ -178,15 +195,15 @@ WeaponInfo GetWeaponInfo(int weapon)
             // Descarrega corrente no capsídeo -> quebra escudos em qualquer Mundo.
             return (WeaponInfo){
                 "Lamina Bioeletrica", "Golpe em 360 graus que descarrega corrente no capsideo.",
-                "Quebra ESCUDOS (capsideo) muito mais rapido", "Desbloqueia com 30 abates; alterne com a tecla 5.",
-                15, "Rapida", 0.22f, 1, WEAPON_BIOBLADE, (Color){ 180, 120, 255, 255 } };
+                "Quebra ESCUDOS (capsideo) muito mais rapido", "Desbloqueia com 30 abates; depois alterne no slot 1.",
+                15, "Combo rapido", 0.24f, 1, 1, (Color){ 180, 120, 255, 255 } };
         case 1:
         default:
             // Arma corpo a corpo inicial — sempre disponível, em qualquer Mundo.
             return (WeaponInfo){
-                "Espada-Seringa", "Golpe corpo a corpo em 360 graus.",
-                "Acerta tudo ao redor + empurrao", "Defesa pessoal; segura inimigos colados em voce.",
-                15, "Rapida", 0.22f, 1, 1, (Color){ 0, 229, 255, 255 } };
+                "Espada-Seringa", "Combo corpo a corpo com estocada e corte.",
+                "Alterna alcance frontal e corte lateral", "Defesa pessoal; depois de 30 abates, o slot 1 alterna para a Lamina.",
+                15, "Combo rapido", 0.24f, 1, 1, (Color){ 0, 229, 255, 255 } };
     }
 }
 
@@ -194,6 +211,8 @@ WeaponInfo GetWeaponInfo(int weapon)
 // de nível (maxWeaponUnlocked); a Lâmina Bioelétrica (5) abre por ABATES.
 bool WeaponUnlocked(GameState *game, int weapon)
 {
+    if (game->adminMode && game->adminUnlockWeapons)
+        return (weapon >= 1 && weapon <= WEAPON_BIOBLADE);
     if (weapon == WEAPON_BIOBLADE)
         return game->totalEnemiesKilled >= BIOBLADE_UNLOCK_KILLS;
     return (weapon >= 1 && weapon <= game->maxWeaponUnlocked);

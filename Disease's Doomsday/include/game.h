@@ -40,6 +40,7 @@
 #define MAX_DAMAGE_TEXTS 32
 #define MAX_CORES 4          // Núcleos de Infecção do escudo do chefe (fase 3)
 #define MAX_BOSS_MINIONS 8   // Limite de lacaios invocados ativos do chefe
+#define MAX_BIOMINES 12      // Minas do Desestabilizador de RNA ativas no chão
 
 // ----------------------------------------------------------------------------
 // MUNDOS (expansão: campanha em 2 Mundos temáticos)
@@ -208,6 +209,17 @@ typedef struct InfectionCore
     float pulse;      // animação
 } InfectionCore;
 
+// Mina biológica plantada pelo Desestabilizador de RNA. Ela só detona quando
+// atingida por tiros do jogador ou pelo melee, criando uma decisão tática.
+typedef struct BioMine
+{
+    Vector2 position;
+    bool active;
+    float armTimer;
+    float pulse;
+    int damage;
+} BioMine;
+
 // ============================================================================
 // ESTRUTURAS DE UI
 // ============================================================================
@@ -245,6 +257,7 @@ typedef struct GameState
     int particlePool[MAX_PARTICLES];
     int particlePoolCount;
     Projectile projectiles[MAX_PROJECTILES];
+    BioMine bioMines[MAX_BIOMINES];
     
     int totalEnemiesKilled;
     int enemiesRemaining;
@@ -275,6 +288,9 @@ typedef struct GameState
     float slashAnimTimer;
     Vector2 slashAnimPos;
     float slashAnimRadius;
+    int slashAnimKind;       // 0=onda circular, 1=estocada, 2=corte lateral, 3=descarga
+    Vector2 slashAnimDir;    // direção do ataque para previews e hitbox visual
+    int meleeComboStep;      // alterna os ataques melee
 
     // Números de dano flutuantes
     DamageText damageTexts[MAX_DAMAGE_TEXTS];
@@ -328,7 +344,7 @@ typedef struct GameState
     // Maior arma já desbloqueada nesta partida (progressão de RPG).
     // 1=Espada-Seringa, 2=Fuzil, 3=Granada, 4=BFG.
     int   maxWeaponUnlocked;
-    // One-shot: avisamos uma única vez quando a Lâmina Bioelétrica (arma 5) abre
+    // One-shot: avisamos uma única vez quando a Lâmina Bioelétrica abre
     // por abates (>= BIOBLADE_UNLOCK_KILLS). Recomputado no load a partir de kills.
     bool  bioBladeAnnounced;
 
@@ -345,6 +361,8 @@ typedef struct GameState
     int   adminLevel;
     int   adminSus;
     bool  adminApply;         // true = aplicar os valores configurados ao começar
+    bool  adminUnlockWeapons; // true = libera todas as armas, incluindo a Lamina
+    bool  adminUnlockSkins;   // true = libera todos os cosmeticos/skins
     bool  debugCollision;     // overlay de depuração da colisão (admin/debug; transitório, NÃO salvo)
 
     // ---- Dificuldade ----

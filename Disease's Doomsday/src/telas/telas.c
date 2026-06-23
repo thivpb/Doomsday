@@ -12,6 +12,7 @@
 #include "../../Assets/@models/player_model.h"
 #include "../../Assets/@models/enemy_model.h"
 #include "../../Assets/@models/doctor_model.h"
+#include "../../Assets/@models/weapons_model.h"
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -1360,6 +1361,7 @@ void UpdateTelaDifficulty(GameState *game, Vector2 mouse)
 // ============================================================================
 #define TUT_TAB_COUNT 7
 static int g_tutTab = 0;
+static float g_tutWeaponsScroll = 0.0f;
 static const char *g_tutTabNames[TUT_TAB_COUNT] = {
     "BASICO", "ARMAS", "INIMIGOS", "CHEFE", "SKINS", "XP/UPGRADES", "HORDAS"
 };
@@ -1495,6 +1497,36 @@ static void DrawEnemyGuideRow(Font font, Rectangle row, int type,
     }
 }
 
+static void DrawTutorialWeaponCard(Font font, Rectangle card, int weapon,
+                                   const char *slot, const char *role,
+                                   Color primary, Color secondary, float time)
+{
+    WeaponInfo wi = GetWeaponInfo(weapon);
+    Color color = wi.color;
+    DrawRectangleRounded(card, 0.08f, 8, Fade((Color){ 5, 13, 20, 255 }, 0.76f));
+    DrawRectangleRoundedLines(card, 0.08f, 8, Fade(color, 0.58f));
+
+    Rectangle preview = { card.x + 14.0f, card.y + 18.0f, card.width * 0.43f, card.height - 36.0f };
+    float bob = sinf(time * 2.0f + weapon) * 6.0f;
+    Vector2 pc = { preview.x + preview.width * 0.5f, preview.y + preview.height * 0.5f + bob };
+    DrawCircleGradient((int)pc.x, (int)pc.y, preview.height * 0.54f, Fade(color, 0.22f), BLANK);
+    DrawCircleLines((int)pc.x, (int)pc.y, preview.height * 0.44f, Fade(color, 0.28f));
+    DrawHeldWeaponFramed(weapon, (Rectangle){ preview.x, preview.y + bob, preview.width, preview.height },
+                         58.0f, sinf(time * 1.7f + weapon) * 10.0f, primary, secondary);
+
+    float tx = card.x + card.width * 0.49f;
+    float tw = card.x + card.width - tx - 16.0f;
+    DrawTextEx(font, slot, (Vector2){ tx, card.y + 16.0f }, 14.0f, 1.0f, Fade(GOLD, 0.95f));
+    DrawTextWrapped(font, wi.name, (Rectangle){ tx, card.y + 38.0f, tw, 50.0f },
+                    22.0f, 1.0f, color);
+    DrawTextWrapped(font, wi.special,
+                    (Rectangle){ tx, card.y + 92.0f, tw, 45.0f },
+                    16.0f, 1.0f, Fade(WHITE, 0.84f));
+    DrawTextWrapped(font, role,
+                    (Rectangle){ tx, card.y + 139.0f, tw, card.height - 150.0f },
+                    15.0f, 1.0f, Fade((Color){ 130, 230, 170, 255 }, 0.92f));
+}
+
 static void DrawTutContent(GameState *game, Font font, Rectangle panel)
 {
     float x = panel.x + 28.0f;
@@ -1519,19 +1551,51 @@ static void DrawTutContent(GameState *game, Font font, Rectangle panel)
             break;
 
         case 1: // ARMAS
-            DrawTextEx(font, "Troque a qualquer momento com 1-5. Cada arma muda a jogabilidade:", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f));
-            y += 36.0f;
-            for (int w = 1; w <= 4; w++)
+        {
+            Color wp = WeaponSkinPrimary(game->player.weaponSkinId);
+            Color ws = WeaponSkinSecondary(game->player.weaponSkinId);
+            float t = (float)GetTime();
+            const float headerH = 38.0f;
+            const float cardW = 382.0f;
+            const float cardH = 190.0f;
+            const float gapX = 18.0f;
+            const float gapY = 18.0f;
+            const float viewH = panel.height - 18.0f;
+            const float contentH = headerH + 3.0f * cardH + 2.0f * gapY + 12.0f;
+            const float maxScroll = contentH - viewH;
+            if (g_tutWeaponsScroll < 0.0f) g_tutWeaponsScroll = 0.0f;
+            if (g_tutWeaponsScroll > maxScroll) g_tutWeaponsScroll = maxScroll;
+
+            float sy = y - g_tutWeaponsScroll;
+            DrawTextEx(font, "Quatro slots. O slot 1 vira dupla melee apos 30 abates. Role para ver tudo.",
+                       (Vector2){ x, sy }, 18.0f, 1.0f, Fade(WHITE, 0.88f));
+            sy += headerH;
+
+            DrawTutorialWeaponCard(font, (Rectangle){ x, sy, cardW, cardH }, 1, "SLOT 1",
+                                   "Combo alterna estocada frontal e corte rapido para segurar inimigos perto.", wp, ws, t);
+            DrawTutorialWeaponCard(font, (Rectangle){ x + cardW + gapX, sy, cardW, cardH }, WEAPON_BIOBLADE, "SLOT 1 / 30 ABATES",
+                                   "Depois de desbloquear, aperte 1 para alternar com a Espada-Seringa.", wp, ws, t);
+            sy += cardH + gapY;
+            DrawTutorialWeaponCard(font, (Rectangle){ x, sy, cardW, cardH }, 2, "SLOT 2 / NIVEL 2",
+                                   "Tiro preciso para finalizar alvos em linha e controlar distancia.", wp, ws, t);
+            DrawTutorialWeaponCard(font, (Rectangle){ x + cardW + gapX, sy, cardW, cardH }, 3, "SLOT 3 / NIVEL 3",
+                                   "Planta minas no chao; aperte mouse 2 para detonar todas.", wp, ws, t);
+            sy += cardH + gapY;
+            DrawTutorialWeaponCard(font, (Rectangle){ x, sy, cardW, cardH }, 4, "SLOT 4 / NIVEL 4",
+                                   "Projetil pesado perfurante para limpar corredores e chefes.", wp, ws, t);
+
+            if (maxScroll > 0.0f)
             {
-                WeaponInfo wi = GetWeaponInfo(w);
-                DrawTextEx(font, TextFormat("[%d] %s", wi.key, wi.name), (Vector2){ x, y }, 20.0f, 1.0f, wi.color); y += 24.0f;
-                DrawTextEx(font, TextFormat("Dano %d (+ATK) | %s | cooldown %.2fs | %s",
-                           wi.baseDamage, wi.speedTxt, wi.cooldown, wi.special),
-                           (Vector2){ x + 16, y }, 15.0f, 1.0f, Fade(WHITE, 0.8f)); y += 22.0f;
-                DrawTextEx(font, TextFormat("Desbloqueio: Nivel %d  -  %s", wi.unlockLevel, wi.playstyle),
-                           (Vector2){ x + 16, y }, 14.0f, 1.0f, Fade((Color){ 120, 220, 140, 255 }, 0.9f)); y += 28.0f;
+                float trackX = panel.x + panel.width - 13.0f;
+                float trackY = panel.y + 14.0f;
+                float trackH = panel.height - 28.0f;
+                float thumbH = trackH * (viewH / contentH);
+                float thumbY = trackY + (g_tutWeaponsScroll / maxScroll) * (trackH - thumbH);
+                DrawRectangleRounded((Rectangle){ trackX, trackY, 5.0f, trackH }, 0.8f, 4, Fade(BLACK, 0.45f));
+                DrawRectangleRounded((Rectangle){ trackX, thumbY, 5.0f, thumbH }, 0.8f, 4, Fade(accent, 0.78f));
             }
             break;
+        }
 
         case 2: // INIMIGOS
         {
@@ -1735,6 +1799,7 @@ void DrawTelaControles(GameState *game, Font font)
 // Atualização da tela de tutorial: navegação de abas + voltar
 void UpdateTelaTutorial(GameState *game, Vector2 mouse)
 {
+    int oldTab = g_tutTab;
     for (int i = 0; i < TUT_TAB_COUNT; i++)
     {
         if (CheckCollisionPointRec(mouse, TutTabRect(i)) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
@@ -1744,6 +1809,23 @@ void UpdateTelaTutorial(GameState *game, Vector2 mouse)
         g_tutTab = (g_tutTab + 1) % TUT_TAB_COUNT;
     if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_A) || IsKeyPressed(KEY_W))
         g_tutTab = (g_tutTab + TUT_TAB_COUNT - 1) % TUT_TAB_COUNT;
+    if (g_tutTab != oldTab && g_tutTab == 1) g_tutWeaponsScroll = 0.0f;
+
+    if (g_tutTab == 1)
+    {
+        Rectangle weaponsPanel = { 358.0f, 207.0f, 842.0f, 389.0f };
+        float wheel = GetMouseWheelMove();
+        const float contentH = 38.0f + 3.0f * 190.0f + 2.0f * 18.0f + 12.0f;
+        const float viewH = weaponsPanel.height - 18.0f;
+        float maxScroll = contentH - viewH;
+        if (maxScroll < 0.0f) maxScroll = 0.0f;
+        if (CheckCollisionPointRec(mouse, weaponsPanel) && wheel != 0.0f)
+            g_tutWeaponsScroll -= wheel * 44.0f;
+        if (IsKeyPressed(KEY_PAGE_DOWN)) g_tutWeaponsScroll += 150.0f;
+        if (IsKeyPressed(KEY_PAGE_UP)) g_tutWeaponsScroll -= 150.0f;
+        if (g_tutWeaponsScroll < 0.0f) g_tutWeaponsScroll = 0.0f;
+        if (g_tutWeaponsScroll > maxScroll) g_tutWeaponsScroll = maxScroll;
+    }
 
     UpdateBtnState(&controlsButton, mouse);
     if (controlsButton.clicked || IsKeyPressed(KEY_ESCAPE))
@@ -1843,17 +1925,25 @@ void DrawTelaGameOver(GameState *game, Font font)
 // Cientista em destaque (mesma arte do tutorial, grande) + caixa de diálogo grande
 // com typewriter. O texto faz wrap e nunca vaza. Avança com SPACE/ENTER/Q/clique.
 // ============================================================================
-int ScientistDialogAdvance(DialogState *dlg, const char *pageText, int pageCount)
+int ScientistDialogAdvance(DialogState *dlg, const char *pageText, int pageCount,
+                           int voiceScope, float sfxVolume)
 {
     int totalLen = (int)strlen(pageText);
-    float speed = 0.018f; // s/caractere (texto maior que o do tutorial)
+    float speed = ScientistVoiceCharDelay(totalLen, 0.018f);
     dlg->charTimer += GetFrameTime();
     while (dlg->charTimer >= speed && dlg->charShown < totalLen) { dlg->charTimer -= speed; dlg->charShown++; }
+    SyncScientistVoice(voiceScope, dlg->page, dlg->charShown, totalLen, sfxVolume);
 
     bool confirm = IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) ||
                    IsKeyPressed(KEY_Q) || IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
     if (!confirm) return 0;
-    if (dlg->charShown < totalLen) { dlg->charShown = totalLen; return 0; } // 1o input: revela tudo
+    if (dlg->charShown < totalLen)
+    {
+        dlg->charShown = totalLen;
+        StopScientistVoice();
+        return 0;
+    } // 1o input: revela tudo
+    StopScientistVoice();
     if (dlg->page < pageCount - 1) { dlg->page++; dlg->charShown = 0; dlg->charTimer = 0.0f; return 1; }
     return 2; // última página confirmada
 }

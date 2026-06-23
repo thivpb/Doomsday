@@ -74,7 +74,7 @@ void DrawSyringeSword(Vector2 handPos, float size, float rotationDeg, Color liqu
 }
 
 // ============================================================================
-// MODELO: LÂMINA BIOELÉTRICA (arma melee anti-capsídeo desbloqueável; slot 5)
+// MODELO: LÂMINA BIOELÉTRICA (variante melee anti-capsídeo desbloqueável)
 // Bisturi/lâmina larga eletrificada que descarrega corrente no capsídeo viral.
 // ============================================================================
 void DrawScalpel(Vector2 handPos, float size, float rotationDeg, Color primary, Color secondary)
@@ -130,7 +130,7 @@ void SetWeaponModelWorld(int world) { s_modelWorld = (world == 1) ? 1 : 0; }
 // ============================================================================
 void DrawHeldWeapon(int weapon, Vector2 handPos, float size, float rotationDeg, Color primary, Color secondary)
 {
-    // Armas melee independentes do Mundo: Lâmina Bioelétrica (slot 5, arcos
+    // Armas melee independentes do Mundo: Lâmina Bioelétrica (ID 5, arcos
     // elétricos/estática) e Espada-Seringa (slot 1). A Lâmina é desbloqueável por
     // abates e usável em AMBOS os Mundos, então o modelo não depende mais de s_modelWorld.
     if (weapon == 5)
@@ -151,67 +151,67 @@ void DrawHeldWeapon(int weapon, Vector2 handPos, float size, float rotationDeg, 
 
     if (weapon == 2)
     {
-        // ---- FUZIL CELULA-T: coronha, corpo, cano longo e boca brilhante ----
-        Color body   = (Color){ 74, 82, 96, 255 };
-        Color bodyDk = (Color){ 40, 45, 56, 255 };
-        // Coronha / empunhadura (para baixo, atras da mao)
+        // ---- RIFLE DE VACINA: capsula medica, trilhos de dose e ampola visivel ----
+        Color body   = (Color){ 54, 66, 78, 255 };
+        Color bodyDk = (Color){ 25, 31, 42, 255 };
+        Color glass  = Fade((Color){ 180, 235, 255, 255 }, 0.42f);
         DrawRectangleRounded((Rectangle){ -s*0.20f, -s*0.05f, s*0.40f, s*0.72f }, 0.45f, 6, bodyDk);
-        // Corpo / receiver
-        DrawRectangleRounded((Rectangle){ -s*0.24f, -s*0.62f, s*0.48f, s*0.62f }, 0.30f, 6, body);
-        DrawRectangleRoundedLines((Rectangle){ -s*0.24f, -s*0.62f, s*0.48f, s*0.62f }, 0.30f, 6, bodyDk);
-        // Mira superior
-        DrawRectangle((int)(-s*0.04f), (int)(-s*0.74f), (int)(s*0.08f), (int)(s*0.14f), bodyDk);
-        // Cano longo
-        DrawRectangle((int)(-s*0.11f), (int)(-s*1.75f), (int)(s*0.22f), (int)(s*1.18f), bodyDk);
-        // Listra/energia da skin no cano
-        DrawRectangle((int)(-s*0.04f), (int)(-s*1.72f), (int)(s*0.08f), (int)(s*1.10f), primary);
-        // Boca / muzzle brilhante (cores da skin)
-        DrawCircleV((Vector2){ 0, -s*1.78f }, s*0.17f, primary);
-        DrawCircleV((Vector2){ 0, -s*1.78f }, s*0.09f, secondary);
-        // Carregador (energia celular)
-        DrawRectangleRounded((Rectangle){ -s*0.12f, -s*0.02f, s*0.24f, s*0.5f }, 0.35f, 6, primary);
-        DrawRectangleRoundedLines((Rectangle){ -s*0.12f, -s*0.02f, s*0.24f, s*0.5f }, 0.35f, 6, secondary);
+        DrawRectangleRounded((Rectangle){ -s*0.32f, -s*0.72f, s*0.64f, s*0.74f }, 0.28f, 8, body);
+        DrawRectangleRoundedLines((Rectangle){ -s*0.32f, -s*0.72f, s*0.64f, s*0.74f }, 0.28f, 8, bodyDk);
+        DrawRectangleRounded((Rectangle){ -s*0.20f, -s*0.63f, s*0.40f, s*0.45f }, 0.45f, 8, primary);
+        DrawRectangleRounded((Rectangle){ -s*0.14f, -s*0.58f, s*0.28f, s*0.34f }, 0.45f, 8, glass);
+        for (int i = 0; i < 4; i++)
+            DrawLineEx((Vector2){ -s*0.23f, -s*(0.55f - i*0.09f) }, (Vector2){ -s*0.08f, -s*(0.55f - i*0.09f) }, s*0.025f, bodyDk);
+        DrawRectangle((int)(-s*0.08f), (int)(-s*1.65f), (int)(s*0.16f), (int)(s*0.95f), bodyDk);
+        DrawRectangle((int)(-s*0.18f), (int)(-s*1.35f), (int)(s*0.36f), (int)(s*0.10f), secondary);
+        DrawTriangle((Vector2){ -s*0.13f, -s*1.65f }, (Vector2){ 0, -s*2.02f }, (Vector2){ s*0.13f, -s*1.65f }, (Color){ 220, 230, 238, 255 });
+        DrawCircleGradient(0, (int)(-s*1.72f), s*0.28f, Fade(primary, 0.75f), BLANK);
+        DrawCircleV((Vector2){ 0, -s*1.72f }, s*0.10f, secondary);
+        DrawRectangleRounded((Rectangle){ s*0.20f, -s*0.28f, s*0.18f, s*0.50f }, 0.35f, 6, bodyDk);
     }
     else if (weapon == 3)
     {
-        // ---- GRANADA MACROFAGO: tubo grosso e granada redonda na boca ----
-        Color body   = (Color){ 86, 74, 56, 255 };
-        Color bodyDk = (Color){ 52, 44, 32, 255 };
-        // Empunhadura
+        // ---- DESESTABILIZADOR DE RNA: plantador de minas com bobina e cartucho ----
+        Color body   = (Color){ 50, 42, 68, 255 };
+        Color bodyDk = (Color){ 24, 20, 34, 255 };
         DrawRectangleRounded((Rectangle){ -s*0.17f, 0.0f, s*0.34f, s*0.62f }, 0.45f, 6, bodyDk);
-        // Tubo curto e grosso
-        DrawRectangleRounded((Rectangle){ -s*0.30f, -s*1.15f, s*0.60f, s*1.20f }, 0.40f, 8, body);
-        DrawRectangleRoundedLines((Rectangle){ -s*0.30f, -s*1.15f, s*0.60f, s*1.20f }, 0.40f, 8, bodyDk);
-        // Tambor
-        DrawCircleV((Vector2){ 0, -s*0.45f }, s*0.24f, bodyDk);
-        DrawCircleLines(0, (int)(-s*0.45f), s*0.24f, body);
-        // Boca larga
-        DrawCircleV((Vector2){ 0, -s*1.15f }, s*0.34f, bodyDk);
-        // Granada-macrofago saindo (cores da skin)
-        DrawCircleV((Vector2){ 0, -s*1.34f }, s*0.27f, primary);
-        DrawCircleLines(0, (int)(-s*1.34f), s*0.27f, secondary);
-        DrawCircleV((Vector2){ -s*0.08f, -s*1.40f }, s*0.07f, secondary); // brilho/pseudópode
+        DrawRectangleRounded((Rectangle){ -s*0.34f, -s*1.08f, s*0.68f, s*1.08f }, 0.34f, 8, body);
+        DrawRectangleRoundedLines((Rectangle){ -s*0.34f, -s*1.08f, s*0.68f, s*1.08f }, 0.34f, 8, secondary);
+        for (int i = 0; i < 4; i++)
+        {
+            float yy = -s*(0.98f - i*0.18f);
+            DrawLineEx((Vector2){ -s*0.25f, yy }, (Vector2){ s*0.25f, yy - s*0.08f }, s*0.035f, (i % 2) ? secondary : primary);
+        }
+        DrawCircleGradient(0, (int)(-s*0.45f), s*0.42f, Fade(primary, 0.55f), BLANK);
+        DrawCircleV((Vector2){ 0, -s*0.45f }, s*0.20f, bodyDk);
+        DrawCircleLines(0, (int)(-s*0.45f), s*0.23f, primary);
+        DrawRectangleRounded((Rectangle){ -s*0.24f, -s*1.42f, s*0.48f, s*0.36f }, 0.45f, 8, bodyDk);
+        DrawCircleV((Vector2){ 0, -s*1.48f }, s*0.26f, primary);
+        DrawCircleV((Vector2){ 0, -s*1.48f }, s*0.11f, secondary);
+        DrawLineEx((Vector2){ -s*0.32f, -s*1.48f }, (Vector2){ s*0.32f, -s*1.48f }, s*0.035f, bodyDk);
+        DrawLineEx((Vector2){ 0, -s*1.80f }, (Vector2){ 0, -s*1.18f }, s*0.035f, bodyDk);
     }
     else
     {
-        // ---- VACINA BFG: canhao pesado com orbe de energia ----
-        Color body   = (Color){ 58, 70, 82, 255 };
-        Color bodyDk = (Color){ 32, 40, 50, 255 };
-        // Empunhadura
+        // ---- BFG IMUNOLOGICO: canhao pesado com nucleo e garfos emissores ----
+        Color body   = (Color){ 48, 58, 70, 255 };
+        Color bodyDk = (Color){ 20, 27, 36, 255 };
+        Color metal  = (Color){ 170, 184, 196, 255 };
         DrawRectangleRounded((Rectangle){ -s*0.22f, 0.0f, s*0.44f, s*0.62f }, 0.45f, 6, bodyDk);
-        // Corpo grande
-        DrawRectangleRounded((Rectangle){ -s*0.42f, -s*1.0f, s*0.84f, s*1.10f }, 0.30f, 8, body);
-        DrawRectangleRoundedLines((Rectangle){ -s*0.42f, -s*1.0f, s*0.84f, s*1.10f }, 0.30f, 8, bodyDk);
-        // Dois canos / prongs
-        DrawRectangle((int)(-s*0.40f), (int)(-s*1.72f), (int)(s*0.20f), (int)(s*0.80f), bodyDk);
-        DrawRectangle((int)( s*0.20f), (int)(-s*1.72f), (int)(s*0.20f), (int)(s*0.80f), bodyDk);
-        // Orbe de energia (glow nas cores da skin)
-        DrawCircleGradient((Vector2){ 0.0f, -s*1.5f }, s*0.52f, primary, BLANK);
-        DrawCircleV((Vector2){ 0, -s*1.5f }, s*0.27f, primary);
-        DrawCircleV((Vector2){ 0, -s*1.5f }, s*0.14f, secondary);
-        DrawCircleLines(0, (int)(-s*1.5f), s*0.52f, secondary);
-        // Emissor central
-        DrawRectangle((int)(-s*0.08f), (int)(-s*1.5f), (int)(s*0.16f), (int)(s*0.55f), secondary);
+        DrawRectangleRounded((Rectangle){ -s*0.50f, -s*1.05f, s*1.00f, s*1.12f }, 0.28f, 8, body);
+        DrawRectangleRoundedLines((Rectangle){ -s*0.50f, -s*1.05f, s*1.00f, s*1.12f }, 0.28f, 8, metal);
+        DrawRectangleRounded((Rectangle){ -s*0.34f, -s*0.92f, s*0.68f, s*0.30f }, 0.35f, 6, bodyDk);
+        DrawCircleGradient(0, (int)(-s*1.18f), s*0.72f, Fade(primary, 0.85f), BLANK);
+        DrawCircleV((Vector2){ 0, -s*1.18f }, s*0.36f, primary);
+        DrawCircleV((Vector2){ 0, -s*1.18f }, s*0.18f, secondary);
+        DrawCircleLines(0, (int)(-s*1.18f), s*0.48f, secondary);
+        DrawRectangle((int)(-s*0.48f), (int)(-s*1.86f), (int)(s*0.18f), (int)(s*0.86f), bodyDk);
+        DrawRectangle((int)( s*0.30f), (int)(-s*1.86f), (int)(s*0.18f), (int)(s*0.86f), bodyDk);
+        DrawCircleV((Vector2){ -s*0.39f, -s*1.90f }, s*0.13f, secondary);
+        DrawCircleV((Vector2){  s*0.39f, -s*1.90f }, s*0.13f, secondary);
+        DrawLineEx((Vector2){ -s*0.39f, -s*1.90f }, (Vector2){ 0, -s*1.52f }, s*0.045f, Fade(primary, 0.85f));
+        DrawLineEx((Vector2){  s*0.39f, -s*1.90f }, (Vector2){ 0, -s*1.52f }, s*0.045f, Fade(primary, 0.85f));
+        DrawRectangleRounded((Rectangle){ s*0.34f, -s*0.25f, s*0.20f, s*0.58f }, 0.3f, 6, bodyDk);
     }
 
     rlPopMatrix();

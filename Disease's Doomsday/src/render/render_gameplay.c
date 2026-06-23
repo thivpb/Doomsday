@@ -345,24 +345,27 @@ void DrawHUD(GameState *game, Font font)
     }
 
     // ------------------------------------------------------------------------
-    // HOTBAR DE ARMAS (centro-inferior): mostra SEMPRE as 5 armas, deixando claro
-    // qual está equipada, quais teclas usar (1-5) e quais ainda estão bloqueadas.
-    // A arma 5 (Lâmina Bioelétrica) abre por ABATES; as demais por nível.
+    // HOTBAR DE ARMAS (centro-inferior): quatro slots. A Lâmina Bioelétrica é
+    // variante do slot melee e alterna com a Espada-Seringa pela tecla 1.
     // ------------------------------------------------------------------------
     {
-        const char *shortNames[WEAPON_COUNT] = { "SERINGA", "FUZIL", "GRANADA", "BFG", "LAMINA" };
-        float slotW = 138.0f, slotH = 54.0f, gap = 9.0f;
-        float totalW = WEAPON_COUNT * slotW + (WEAPON_COUNT - 1) * gap;
+        const char *shortNames[WEAPON_SLOT_COUNT] = { "MELEE", "FUZIL", "MINAS RNA", "BFG" };
+        float slotW = 156.0f, slotH = 54.0f, gap = 10.0f;
+        float totalW = WEAPON_SLOT_COUNT * slotW + (WEAPON_SLOT_COUNT - 1) * gap;
         float startX = (SCREEN_WIDTH - totalW) / 2.0f;
         float y = SCREEN_HEIGHT - slotH - 16.0f;
 
-        DrawTextEx(font, "ARMAS (teclas 1-5):", (Vector2){ startX, y - 20.0f }, 13.0f, 1.0f, Fade(WHITE, 0.7f));
+        DrawTextEx(font, "ARMAS (teclas 1-4): 1 alterna a Lamina apos 30 abates", (Vector2){ startX, y - 20.0f }, 13.0f, 1.0f, Fade(WHITE, 0.7f));
 
-        for (int s = 0; s < WEAPON_COUNT; s++)
+        for (int s = 0; s < WEAPON_SLOT_COUNT; s++)
         {
-            WeaponInfo wi = GetWeaponInfo(s + 1);
+            int weaponId = s + 1;
+            if (s == 0 && game->player.equippedWeapon == WEAPON_BIOBLADE) weaponId = WEAPON_BIOBLADE;
+            WeaponInfo wi = GetWeaponInfo(weaponId);
             bool unlocked = WeaponUnlocked(game, s + 1);
-            bool current  = (game->player.equippedWeapon == s + 1);
+            bool current  = (s == 0)
+                ? (game->player.equippedWeapon == 1 || game->player.equippedWeapon == WEAPON_BIOBLADE)
+                : (game->player.equippedWeapon == s + 1);
             Rectangle r = { startX + s * (slotW + gap), y, slotW, slotH };
 
             Color bg = current ? Fade(wi.color, 0.22f) : Fade((Color){ 10, 8, 22, 255 }, 0.8f);
@@ -380,10 +383,7 @@ void DrawHUD(GameState *game, Font font)
 
             if (!unlocked)
             {
-                // Requisito: abates para a Lâmina Bioelétrica; nível para as demais.
-                const char *lockReq = (s + 1 == WEAPON_BIOBLADE)
-                    ? TextFormat("%d abates", BIOBLADE_UNLOCK_KILLS)
-                    : TextFormat("Nivel %d", wi.unlockLevel);
+                const char *lockReq = TextFormat("Nivel %d", wi.unlockLevel);
                 DrawTextEx(font, lockReq, (Vector2){ r.x + 30, r.y + 30 }, 13.0f, 1.0f, Fade(RED, 0.9f));
                 // cadeado simples
                 DrawRectangleRounded((Rectangle){ r.x + slotW - 26, r.y + 8, 16, 14 }, 0.4f, 4, Fade(GRAY, 0.8f));
@@ -392,8 +392,12 @@ void DrawHUD(GameState *game, Font font)
             else
             {
                 // efeito especial resumido
-                const char *tag = (s == 0) ? "360 / empurrao" : (s == 1) ? "rapida"
-                                : (s == 2) ? "area+veneno" : (s == 3) ? "perfurante" : "quebra escudo";
+                const char *tag = (s == 0)
+                    ? ((game->player.equippedWeapon == WEAPON_BIOBLADE) ? "descarga anti-escudo" :
+                       (WeaponUnlocked(game, WEAPON_BIOBLADE) ? "1 alterna lamina" : TextFormat("%d abates p/ lamina", BIOBLADE_UNLOCK_KILLS)))
+                    : (s == 1) ? "rajada precisa"
+                    : (s == 2) ? "mouse 2 detona"
+                    : "perfurante";
                 DrawTextEx(font, tag, (Vector2){ r.x + 30, r.y + 31 }, 12.0f, 1.0f, Fade(wi.color, 0.9f));
 
                 // Barra de cooldown apenas na arma equipada
@@ -856,6 +860,25 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
     Color wpnPrim = WeaponSkinPrimary(game->player.weaponSkinId);
     Color wpnSec  = WeaponSkinSecondary(game->player.weaponSkinId);
 
+    for (int i = 0; i < MAX_BIOMINES; i++)
+    {
+        BioMine *m = &game->bioMines[i];
+        if (!m->active) continue;
+        float pulse = 0.5f + 0.5f * sinf(m->pulse * 7.0f);
+        Color armed = (m->armTimer > 0.0f) ? Fade(GRAY, 0.75f) : (Color){ 90, 255, 180, 255 };
+        DrawCircleV(m->position, 18.0f + pulse * 3.0f, Fade(armed, 0.16f));
+        DrawCircleLines(m->position.x, m->position.y, 16.0f + pulse * 2.0f, Fade(armed, 0.75f));
+        DrawCircleV(m->position, 7.0f, (Color){ 40, 24, 56, 255 });
+        DrawCircleV(m->position, 3.5f + pulse * 1.5f, armed);
+        for (int s = 0; s < 4; s++)
+        {
+            float a = (m->pulse * 100.0f + s * 90.0f) * DEG2RAD;
+            Vector2 a0 = { m->position.x + cosf(a) * 8.0f, m->position.y + sinf(a) * 8.0f };
+            Vector2 a1 = { m->position.x + cosf(a) * 17.0f, m->position.y + sinf(a) * 17.0f };
+            DrawLineEx(a0, a1, 2.0f, Fade(armed, 0.8f));
+        }
+    }
+
     for (int i = 0; i < MAX_PROJECTILES; i++)
     {
         if (game->projectiles[i].active)
@@ -875,7 +898,7 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
 
             if (p->type == PROJ_PLAYER_BFG) {
                 srcSize = 30.0f;
-                DrawCircleGradient(p->position, srcSize, pCol, BLANK);
+                DrawCircleGradient((int)p->position.x, (int)p->position.y, srcSize, pCol, BLANK);
                 DrawCircleLines(p->position.x, p->position.y, srcSize, wpnSec);
             } else if (p->type == PROJ_PLAYER_GRENADE) {
                 srcSize = 15.0f;
@@ -914,12 +937,49 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
 
     if (game->slashAnimTimer > 0.0f)
     {
-        float t = 1.0f - (game->slashAnimTimer / 0.22f);
-        float currentRadius = t * game->slashAnimRadius;
+        float dur = (game->slashAnimKind == 3) ? 0.30f : 0.24f;
+        float t = 1.0f - (game->slashAnimTimer / dur);
+        if (t < 0.0f) t = 0.0f;
+        if (t > 1.0f) t = 1.0f;
+        Vector2 dir = game->slashAnimDir;
+        if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ 1.0f, 0.0f };
+        Vector2 perp = { -dir.y, dir.x };
+        float alpha = (1.0f - t);
 
-        DrawCircleLines(game->slashAnimPos.x, game->slashAnimPos.y, currentRadius, Fade(wpnSec, (1.0f - t) * 0.9f));
-        DrawCircleLines(game->slashAnimPos.x, game->slashAnimPos.y, currentRadius - 8.0f, Fade(wpnPrim, (1.0f - t) * 0.7f));
-        DrawCircle(game->slashAnimPos.x, game->slashAnimPos.y, currentRadius, Fade(wpnPrim, (1.0f - t) * 0.15f));
+        if (game->slashAnimKind == 1)
+        {
+            Vector2 start = Vector2Add(game->slashAnimPos, Vector2Scale(dir, 28.0f));
+            Vector2 tip = Vector2Add(game->slashAnimPos, Vector2Scale(dir, game->slashAnimRadius * (0.45f + 0.55f * t)));
+            DrawLineEx(start, tip, 10.0f, Fade(wpnPrim, alpha * 0.85f));
+            DrawLineEx(Vector2Add(start, Vector2Scale(perp, 8.0f)), tip, 3.0f, Fade(WHITE, alpha));
+            DrawCircleV(tip, 14.0f, Fade(wpnSec, alpha * 0.75f));
+        }
+        else if (game->slashAnimKind == 2)
+        {
+            Vector2 c = Vector2Add(game->slashAnimPos, Vector2Scale(dir, 54.0f));
+            float r = game->slashAnimRadius * (0.58f + 0.20f * t);
+            for (int s = 0; s < 7; s++)
+            {
+                float u = ((float)s / 6.0f - 0.5f) * 2.25f;
+                Vector2 p0 = Vector2Add(c, Vector2Add(Vector2Scale(dir, cosf(u) * r * 0.35f), Vector2Scale(perp, sinf(u) * r)));
+                DrawCircleV(p0, 5.0f + s * 0.4f, Fade((s % 2) ? wpnSec : wpnPrim, alpha * 0.85f));
+            }
+            DrawCircleLines(c.x, c.y, r, Fade(wpnPrim, alpha * 0.38f));
+        }
+        else
+        {
+            float currentRadius = t * game->slashAnimRadius;
+            DrawCircleLines(game->slashAnimPos.x, game->slashAnimPos.y, currentRadius, Fade(wpnSec, alpha * 0.95f));
+            DrawCircleLines(game->slashAnimPos.x, game->slashAnimPos.y, currentRadius - 10.0f, Fade(wpnPrim, alpha * 0.75f));
+            DrawCircle(game->slashAnimPos.x, game->slashAnimPos.y, currentRadius, Fade(wpnPrim, alpha * 0.14f));
+            for (int s = 0; s < 6; s++)
+            {
+                float a = (s * 60.0f + t * 160.0f) * DEG2RAD;
+                Vector2 a0 = { game->slashAnimPos.x + cosf(a) * currentRadius * 0.35f, game->slashAnimPos.y + sinf(a) * currentRadius * 0.35f };
+                Vector2 a1 = { game->slashAnimPos.x + cosf(a + 0.4f) * currentRadius, game->slashAnimPos.y + sinf(a + 0.4f) * currentRadius };
+                DrawLineEx(a0, a1, 3.0f, Fade(wpnSec, alpha * 0.85f));
+            }
+        }
     }
 
     for (int i = 0; i < MAX_PARTICLES; i++)

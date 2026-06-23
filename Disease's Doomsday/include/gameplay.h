@@ -71,9 +71,10 @@ void ShowBanner(GameState *game, const char *msg, const char *sub, Color color, 
 void UpdateBanner(GameState *game, float delta);
 
 // ---- Armas / progressão ----
-// Total de armas no arsenal. A arma 5 (Lâmina Bioelétrica) é desbloqueada por
-// ABATES (não por nível), disponível na campanha inteira após o desbloqueio.
+// Total de entradas no arsenal. A Lâmina Bioelétrica mantém ID 5 por
+// compatibilidade, mas na gameplay divide o slot 1 com a Espada-Seringa.
 #define WEAPON_COUNT           5
+#define WEAPON_SLOT_COUNT      4
 #define WEAPON_BIOBLADE        5    // Lâmina Bioelétrica (melee anti-capsídeo desbloqueável)
 #define BIOBLADE_UNLOCK_KILLS  30   // abates necessários para desbloquear a Lâmina Bioelétrica
 
@@ -100,7 +101,7 @@ int  WeaponUnlockLevel(int weapon);
 // Nome curto da arma (1..5)
 const char *WeaponName(int weapon);
 // true se a arma está desbloqueada para este estado de jogo: armas 1-4 por
-// progressão de nível (maxWeaponUnlocked); arma 5 (Lâmina Bioelétrica) por abates
+// progressão de nível (maxWeaponUnlocked); Lâmina Bioelétrica por abates
 // (totalEnemiesKilled >= BIOBLADE_UNLOCK_KILLS). Fonte única usada por troca/arsenal.
 bool WeaponUnlocked(GameState *game, int weapon);
 // Define o Mundo atual usado por GetWeaponInfo para nomear/descrever a arma de
@@ -140,6 +141,11 @@ int  ApplyPlayerDamageToEnemy(GameState *game, Enemy *enemy, int dmg, bool isBFG
 // Classificação biológica do patógeno (afinidade das armas).
 bool EnemyIsBacterial(int type);
 bool EnemyIsViral(int type);
+
+// ---- Minas do Desestabilizador de RNA ----
+void PlantBioMine(GameState *game, Vector2 pos, int dmg);
+bool TriggerBioMinesInRadius(GameState *game, Vector2 pos, float radius);
+bool DetonateAllBioMines(GameState *game);
 
 // ---- Transição entre Mundos (Fase 6) ----
 // Cutscene/tela educativa exibida ao concluir o Mundo das Bactérias, levando

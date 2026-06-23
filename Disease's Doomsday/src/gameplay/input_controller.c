@@ -17,13 +17,27 @@ extern UIButton settingsReturnBtn;
 
 extern UIButton settingsBtnVoltar;
 
+static void PlayMenuHoverSfxThrottled(void)
+{
+    static double lastHoverSfxTime = -10.0;
+    const double now = GetTime();
+    const double minInterval = 0.09;
+
+    if (g_assets.sfxMenuHover.frameCount <= 0) return;
+    if (now - lastHoverSfxTime < minInterval) return;
+    if (IsSoundPlaying(g_assets.sfxMenuHover)) return;
+
+    PlaySound(g_assets.sfxMenuHover);
+    lastHoverSfxTime = now;
+}
+
 void UpdateBtnState(UIButton *btn, Vector2 mouse)
 {
     bool wasHovered = btn->hover;
     btn->hover = CheckCollisionPointRec(mouse, btn->bounds);
     btn->clicked = false;
     if (btn->hover && !wasHovered && g_assets.sfxMenuHover.frameCount > 0)
-        PlaySound(g_assets.sfxMenuHover);
+        PlayMenuHoverSfxThrottled();
     if (btn->hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
     {
         btn->clicked = true;
@@ -290,7 +304,8 @@ void UpdateButtonsVitoria(GameState *game, Vector2 mouse)
         const char *pages[4];
         int pc = VictoryDialogPages(game, pages);
         if (game->sceneDialog.page >= pc) game->sceneDialog.page = pc - 1;
-        if (ScientistDialogAdvance(&game->sceneDialog, pages[game->sceneDialog.page], pc) == 2)
+        if (ScientistDialogAdvance(&game->sceneDialog, pages[game->sceneDialog.page], pc,
+                                   SCIENTIST_VOICE_VICTORY, game->sfxVolume) == 2)
             game->sceneDialog.active = false;
         return;
     }

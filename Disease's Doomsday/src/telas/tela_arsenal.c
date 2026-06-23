@@ -91,7 +91,7 @@ static void DrawWeaponPreview(int weapon, Rectangle area, bool unlocked, float h
     Color aura = unlocked ? primary : (Color){ 90, 96, 110, 255 };
 
     // Halo / pulso de energia atrás da arma.
-    DrawCircleGradient(c, ring, Fade(aura, (unlocked ? 0.22f : 0.10f) + highlight * 0.2f), BLANK);
+    DrawCircleGradient((int)c.x, (int)c.y, ring, Fade(aura, (unlocked ? 0.22f : 0.10f) + highlight * 0.2f), BLANK);
     DrawCircleLines((int)c.x, (int)c.y, ring, Fade(aura, 0.25f + highlight * 0.4f));
 
     // Partículas orbitando (determinísticas por tempo).
@@ -130,7 +130,7 @@ void DrawTelaArsenal(GameState *game, Font font)
     DrawThemedBackground(SCREEN_ARSENAL, time, game->screenAnim / 0.4f);
 
     DrawTitleText(font, "ARSENAL DO ANTICORPO", SCREEN_WIDTH / 2.0f, 30.0f, 40.0f, THEME_COLOR_TEXT);
-    const char *sub = "Selecione uma arma (roda do mouse / setas rolam a lista). Em jogo, troque com 1 a 5.";
+    const char *sub = "Selecione uma arma (roda do mouse / setas rolam a lista). Em jogo, use 1 a 4; a tecla 1 alterna a Lamina apos 30 abates.";
     Vector2 sSz = MeasureTextEx(font, sub, 16.0f, 1.0f);
     DrawTextEx(font, sub, (Vector2){ SCREEN_WIDTH / 2.0f - sSz.x / 2.0f, 84.0f }, 16.0f, 1.0f, Fade(WHITE, 0.8f));
 
@@ -253,7 +253,7 @@ void DrawTelaArsenal(GameState *game, Font font)
     }
 
     DrawButton(arsenalBack, font, true);
-    DrawTextEx(font, "Use 1-5, setas ou a roda do mouse  |  ESC para voltar",
+    DrawTextEx(font, "Use 1-4 no jogo; a Lamina divide o slot 1  |  ESC para voltar",
                (Vector2){ 380, SCREEN_HEIGHT - 28 }, 14.0f, 1.0f, DARKGRAY);
 }
 
@@ -283,13 +283,12 @@ void UpdateTelaArsenal(GameState *game, Vector2 mouse)
         }
     }
 
-    // Seleção por teclado (1-5 e setas) — rola para manter a seleção visível.
+    // Seleção por teclado e setas — rola para manter a seleção visível.
     int prevSel = g_arsenalSel;
     if (IsKeyPressed(KEY_ONE))   g_arsenalSel = 0;
     if (IsKeyPressed(KEY_TWO))   g_arsenalSel = 1;
     if (IsKeyPressed(KEY_THREE)) g_arsenalSel = 2;
     if (IsKeyPressed(KEY_FOUR))  g_arsenalSel = 3;
-    if (IsKeyPressed(KEY_FIVE))  g_arsenalSel = 4;
     if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_RIGHT)) g_arsenalSel = (g_arsenalSel + 1) % WEAPON_COUNT;
     if (IsKeyPressed(KEY_UP)   || IsKeyPressed(KEY_LEFT))  g_arsenalSel = (g_arsenalSel + WEAPON_COUNT - 1) % WEAPON_COUNT;
     if (g_arsenalSel != prevSel)

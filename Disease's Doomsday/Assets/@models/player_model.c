@@ -58,6 +58,7 @@ typedef struct PlayerAnchors {
     Vector2 head;  float headR;
     Vector2 torsoC; float torsoW, torsoH;
     Vector2 hipL, hipR;       // topo das pernas (acompanha os frames)
+    Vector2 kneeL, kneeR;      // dobra real da perna
     Vector2 footL, footR;     // pés
     Vector2 shoulderL, shoulderR;
     Vector2 handL, handR;     // mãos
@@ -71,6 +72,32 @@ typedef struct PlayerAnchors {
 #define COS_C_GOLD  (Color){ 230, 180, 50, 255 }
 #define COS_C_MAG   (Color){ 230, 80, 200, 255 }
 #define COS_C_PURP  (Color){ 150, 90, 210, 255 }
+
+static Vector2 SafeNorm(Vector2 v, Vector2 fallback)
+{
+    float len = sqrtf(v.x * v.x + v.y * v.y);
+    if (len <= 0.001f) return fallback;
+    return (Vector2){ v.x / len, v.y / len };
+}
+
+static void DrawCapsuleSegment(Vector2 a, Vector2 b, float thick, Color col)
+{
+    DrawLineEx(a, b, thick, col);
+    DrawCircleV(a, thick * 0.5f, col);
+    DrawCircleV(b, thick * 0.5f, col);
+}
+
+static void DrawOrientedBox(Vector2 center, Vector2 dir, float halfLen, float halfWidth, Color col)
+{
+    dir = SafeNorm(dir, (Vector2){ 1.0f, 0.0f });
+    Vector2 n = { -dir.y, dir.x };
+    Vector2 p1 = Vector2Add(Vector2Add(center, Vector2Scale(dir, -halfLen)), Vector2Scale(n, -halfWidth));
+    Vector2 p2 = Vector2Add(Vector2Add(center, Vector2Scale(dir,  halfLen)), Vector2Scale(n, -halfWidth));
+    Vector2 p3 = Vector2Add(Vector2Add(center, Vector2Scale(dir,  halfLen)), Vector2Scale(n,  halfWidth));
+    Vector2 p4 = Vector2Add(Vector2Add(center, Vector2Scale(dir, -halfLen)), Vector2Scale(n,  halfWidth));
+    DrawTriangle(p1, p2, p3, col);
+    DrawTriangle(p1, p3, p4, col);
+}
 
 // Capacete: VISOR (id3) preservado como referência; CONTENÇÃO (id1) e QUITINA
 // (id2) agora são DOMOS orgânicos que envolvem a cabeça (sem retângulo solto),
@@ -178,43 +205,55 @@ static void CosArms(int id, PlayerAnchors a, float size, float t)
     }
 }
 
-// Calças: VARIAÇÕES do traje (reveste a perna existente, mais fina que a base —
-// não aumenta volume), com joelheira e detalhe de costura/fibra por material.
-static void CosLegs(int id, PlayerAnchors a, float size, float t)
-{
-    if (id <= 0) return;
-    (void)t;
-    Color col  = (id == 2) ? COS_C_PURP : COS_C_WHITE;
-    Color knee = (id == 2) ? (Color){ 96, 54, 150, 255 } : (Color){ 120, 200, 255, 255 };
-    for (int s = 0; s < 2; s++) {
-        Vector2 hip = s ? a.hipR : a.hipL;
-        Vector2 foot = s ? a.footR : a.footL;
-        DrawLineEx(hip, foot, size * 0.15f, Fade(col, 0.92f));          // reveste a perna (fino)
-        Vector2 mid = { (hip.x + foot.x) * 0.5f, (hip.y + foot.y) * 0.5f };
-        DrawCircleV(mid, size * 0.052f, knee);                          // joelheira
-        if (id == 2) DrawLineEx(hip, foot, size * 0.04f, Fade((Color){ 180, 120, 230, 255 }, 0.7f)); // fibra
-        else         DrawLineEx(hip, foot, size * 0.02f, Fade((Color){ 120, 200, 255, 255 }, 0.45f)); // costura
-    }
-}
-
-// Botas: FITAM o pé e o terço inferior da perna, com sola encostando no chão —
-// sem flutuar nem inflar o pé. Garra extra no material mutante.
+// Botas: sapato largo e baixo, com solado plano como nas referências. As cores
+// são próprias da peça e não acompanham as skins base do personagem.
 static void CosBoots(int id, PlayerAnchors a, float size, float t)
 {
     if (id <= 0) return;
     (void)t;
-    Color col = (id == 2) ? COS_C_GREEN : COS_C_WHITE;
-    Color dk  = (id == 2) ? (Color){ 24, 80, 44, 255 } : (Color){ 150, 170, 190, 255 };
+    Color col = (id == 2) ? (Color){ 42, 132, 132, 255 } : (Color){ 222, 42, 35, 255 };
+    Color hi  = (id == 2) ? (Color){ 80, 178, 174, 255 } : (Color){ 255, 94, 78, 255 };
+    Color dk  = (id == 2) ? (Color){ 16, 66, 72, 255 }   : (Color){ 114, 22, 22, 255 };
+
+    if (!a.moving)
+    {
+        Vector2 feet[2] = { a.footL, a.footR };
+        float w = size * 0.27f;
+        float h = size * 0.105f;
+        for (int s = 0; s < 2; s++)
+        {
+            Rectangle boot = { feet[s].x - w * 0.5f, feet[s].y - h * 0.30f, w, h };
+            DrawRectangleRounded(boot, 0.20f, 5, col);
+            DrawRectangle((int)boot.x, (int)(boot.y + boot.height - size * 0.025f),
+                          (int)boot.width, (int)(size * 0.026f), dk);
+            DrawLineEx((Vector2){ boot.x + w * 0.10f, boot.y + h * 0.22f },
+                       (Vector2){ boot.x + w * 0.34f, boot.y + h * 0.10f },
+                       size * 0.012f, Fade(hi, 0.70f));
+            DrawLineEx((Vector2){ boot.x, boot.y + boot.height },
+                       (Vector2){ boot.x + boot.width, boot.y + boot.height },
+                       size * 0.014f, Fade(BLACK, 0.50f));
+        }
+        return;
+    }
+
     for (int s = 0; s < 2; s++) {
-        Vector2 hip = s ? a.hipR : a.hipL;
+        Vector2 kneeP = s ? a.kneeR : a.kneeL;
         Vector2 foot = s ? a.footR : a.footL;
-        Vector2 ankle = { foot.x + (hip.x - foot.x) * 0.30f, foot.y + (hip.y - foot.y) * 0.30f };
-        DrawLineEx(ankle, foot, size * 0.16f, col);                                   // cano da bota
-        DrawRectangleRounded((Rectangle){ foot.x - size * 0.12f, foot.y - size * 0.015f, size * 0.24f, size * 0.07f }, 0.5f, 4, dk); // sola
-        if (id == 2)
-            DrawTriangle((Vector2){ foot.x + a.dir * size * 0.12f, foot.y - size * 0.01f },
-                         (Vector2){ foot.x + a.dir * size * 0.21f, foot.y + size * 0.02f },
-                         (Vector2){ foot.x + a.dir * size * 0.12f, foot.y + size * 0.04f }, col);
+        if (kneeP.x == 0.0f && kneeP.y == 0.0f)
+            kneeP = Vector2Add(foot, (Vector2){ 0.0f, -size * 0.25f });
+
+        Vector2 ankle = Vector2Lerp(kneeP, foot, 0.76f);
+        Vector2 toeDir = a.moving ? (Vector2){ (float)a.dir, 0.18f } : (Vector2){ (s ? 1.0f : -1.0f) * 0.34f, 0.16f };
+        toeDir = SafeNorm(toeDir, (Vector2){ (float)a.dir, 0.0f });
+        Vector2 soleCenter = Vector2Add(foot, Vector2Scale(toeDir, size * 0.035f));
+
+        DrawCapsuleSegment(ankle, foot, size * 0.105f, col);
+        DrawOrientedBox(soleCenter, toeDir, size * 0.155f, size * 0.050f, col);
+        DrawOrientedBox(Vector2Add(soleCenter, Vector2Scale((Vector2){ -toeDir.y, toeDir.x }, size * 0.035f)),
+                        toeDir, size * 0.150f, size * 0.017f, dk);
+        DrawLineEx(Vector2Add(soleCenter, Vector2Scale(toeDir, -size * 0.12f)),
+                   Vector2Add(soleCenter, Vector2Scale(toeDir,  size * 0.12f)),
+                   size * 0.018f, Fade(BLACK, 0.30f));
     }
 }
 
@@ -231,7 +270,7 @@ static void CosFX(int id, PlayerAnchors a, float size, float t)
     if (id == 1) { // Aura de Anticorpos — ultrapassa a silhueta, pulsa, leve
         float pulse = 0.5f + 0.5f * sinf(t * 2.6f);
         float R = bodyR + size * 0.22f + pulse * size * 0.08f;
-        DrawCircleGradient(bc, R, Fade(COS_C_CYAN, 0.10f + 0.05f * pulse), BLANK);
+        DrawCircleGradient((int)bc.x, (int)bc.y, R, Fade(COS_C_CYAN, 0.10f + 0.05f * pulse), BLANK);
         DrawCircleLines((int)bc.x, (int)bc.y, R, Fade(COS_C_CYAN, 0.26f + 0.12f * pulse));
         DrawCircleLines((int)bc.x, (int)bc.y, R * 0.93f, Fade(COS_C_CYAN, 0.13f));
     } else if (id == 2) { // Hélice de DNA — PRESERVADA (só escala/posição responsiva)
@@ -260,7 +299,8 @@ static void CosFX(int id, PlayerAnchors a, float size, float t)
 // desenhado nem exposto na UI.
 static void DrawPlayerCosmetics(Player *player, PlayerAnchors a, float size, float time)
 {
-    CosLegs(player->cosmetics[COS_LEGS], a, size, time);
+    // COS_LEGS foi removido do guarda-roupa: saves antigos podem ter valor salvo,
+    // mas a peça não é mais desenhada para evitar encaixes ruins no modelo.
     CosBoots(player->cosmetics[COS_BOOTS], a, size, time);
     CosChest(player->cosmetics[COS_CHEST], a, size, time);
     CosArms(player->cosmetics[COS_ARMS], a, size, time);
@@ -301,7 +341,7 @@ void DrawPlayerModel(Player *player, float size, Color tint, float time, float a
     // Cores da skin da arma (aplicadas a TODOS os modelos de arma segurada)
     Color swordLiquid = WeaponSkinPrimary(player->weaponSkinId);
     Color swordGlow   = WeaponSkinSecondary(player->weaponSkinId);
-    int   heldWeapon  = (player->equippedWeapon >= 1 && player->equippedWeapon <= 4) ? player->equippedWeapon : 1;
+    int   heldWeapon  = (player->equippedWeapon >= 1 && player->equippedWeapon <= 5) ? player->equippedWeapon : 1;
 
     // Pontos de ancoragem para os cosméticos (preenchidos por pose abaixo).
     PlayerAnchors anch = { 0 };
@@ -411,10 +451,12 @@ void DrawPlayerModel(Player *player, float size, Color tint, float time, float a
         anch.head = headPos; anch.headR = size * 0.25f;
         anch.torsoC = (Vector2){ pPos.x, torso.y + torso.height * 0.5f };
         anch.torsoW = torso.width; anch.torsoH = torso.height;
-        anch.hipL = (Vector2){ legL.x + size * 0.08f, legL.y };
-        anch.hipR = (Vector2){ legR.x + size * 0.08f, legR.y };
-        anch.footL = (Vector2){ legL.x + size * 0.08f, legL.y + size * 0.32f };
-        anch.footR = (Vector2){ legR.x + size * 0.08f, legR.y + size * 0.32f };
+        anch.hipL = (Vector2){ legL.x + legL.width * 0.5f, legL.y + size * 0.02f };
+        anch.hipR = (Vector2){ legR.x + legR.width * 0.5f, legR.y + size * 0.02f };
+        anch.kneeL = (Vector2){ legL.x + legL.width * 0.5f, legL.y + size * 0.18f };
+        anch.kneeR = (Vector2){ legR.x + legR.width * 0.5f, legR.y + size * 0.18f };
+        anch.footL = (Vector2){ legL.x + legL.width * 0.5f - size * 0.02f, legL.y + size * 0.315f };
+        anch.footR = (Vector2){ legR.x + legR.width * 0.5f + size * 0.02f, legR.y + size * 0.315f };
         anch.shoulderL = armLStart; anch.shoulderR = armRStart;
         anch.handL = armLHand; anch.handR = armRHand;
         anch.moving = false;
@@ -529,6 +571,7 @@ void DrawPlayerModel(Player *player, float size, Color tint, float time, float a
         anch.torsoC = (Vector2){ pPos.x, torso.y + torso.height * 0.5f };
         anch.torsoW = torso.width * 1.3f; anch.torsoH = torso.height;
         anch.hipL = legBackStart; anch.hipR = legFrontStart;
+        anch.kneeL = legBackKnee; anch.kneeR = legFrontKnee;
         anch.footL = legBackFoot; anch.footR = legFrontFoot;
         anch.shoulderL = armBackStart; anch.shoulderR = armFrontStart;
         anch.handL = armBackHand; anch.handR = armFrontHand;
