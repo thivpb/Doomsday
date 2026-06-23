@@ -3,7 +3,6 @@
 // Disease's Doomsday — Projeto de Saúde Pública / DF
 #include "map_seringa.h"
 #include "raylib.h"
-#include "raymath.h"
 #include <math.h>
 #include <stdio.h>
 

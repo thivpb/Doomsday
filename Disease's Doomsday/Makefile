@@ -100,6 +100,20 @@ test:
 	$(CC) -O2 $(CFLAGS) tests/test_virus_waves.c src/systems/wave_manager.c src/entities/enemy.c Assets/Maps/map_body.c -o test_virus_waves -lm
 	./test_virus_waves
 
+# ---------------------------------------------------------------------------
+# Build de RELEASE para Windows (.exe) — usado pelo GitHub Actions.
+# Reutiliza a MESMA lista $(SRCS) acima, entao NUNCA fica desatualizado em
+# relacao ao codigo. Gera um rpg_game.exe AUTONOMO (raylib + runtime do GCC
+# linkados estaticamente): o amigo so baixa 1 arquivo e da dois cliques.
+# Requer MSYS2/MINGW64 com: gcc, raylib, pkgconf, make.
+# ---------------------------------------------------------------------------
+win-release: $(SRCS)
+	$(CC) $(SRCS) -o $(TARGET).exe -O2 -Wall -Wno-missing-braces -Iinclude \
+	  $(shell pkg-config --cflags raylib) \
+	  $(shell pkg-config --static --libs raylib) \
+	  -lopengl32 -lgdi32 -lwinmm -lm -static -static-libgcc
+	@echo "[OK] $(TARGET).exe (standalone) gerado."
+
 clean:
 	rm -f $(TARGET) test_core_spawns test_map_body test_rifle_range test_cosmetics test_virus_waves bake_collision_mask
 	@echo "[OK] Limpeza concluida."

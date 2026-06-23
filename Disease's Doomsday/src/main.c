@@ -3,7 +3,6 @@
 #include "../include/game.h"
 #include "../include/gameplay.h"
 #include "../include/telas.h"
-#include "../include/input_controller.h"
 #include "../include/asset_manager.h"
 #include "logic/fsm.h"
 #include "rlgl.h"

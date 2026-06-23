@@ -7,11 +7,9 @@
 #include "raymath.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "../../include/asset_manager.h"
 #include "../../include/telas.h"
-#include <string.h>
 #include <time.h>
 #ifdef _WIN32
 #include <process.h>
@@ -32,8 +30,6 @@ static void StartDetachedThread(void *(*func)(void *), void *arg)
 #define START_THREAD(func, arg) StartDetachedThread(func, arg)
 #endif
 #include <math.h>
-#include <time.h>
-#include <string.h>
 
 // ============================================================================
 // AUXILIAR: EMISSOR DE PARTÍCULAS

@@ -1,6 +1,5 @@
 #include "enemy_model.h"
 #include "../../include/sprite_manager.h"
-#include "raymath.h"
 #include <math.h>
 
 // ============================================================================

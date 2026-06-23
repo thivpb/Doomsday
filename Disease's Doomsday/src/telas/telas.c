@@ -8,8 +8,6 @@
 #include "../../Assets/@models/menu_title_glyphs.h"
 #include "../../Assets/@models/menu_organisms.h"
 #include "raymath.h"
-#include "../../Assets/Maps/map_seringa.h"
-#include "../../Assets/@models/player_model.h"
 #include "../../Assets/@models/enemy_model.h"
 #include "../../Assets/@models/doctor_model.h"
 #include "../../Assets/@models/weapons_model.h"

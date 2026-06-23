@@ -219,7 +219,7 @@ void DrawHeldWeapon(int weapon, Vector2 handPos, float size, float rotationDeg, 
 
 // Extensão vertical do modelo (em unidades de `size`) ACIMA (up, para -Y) e
 // ABAIXO (down, para +Y) da âncora. Os modelos apontam a ponta para cima, então
-// up >> down. Inclui folga para glows/auras. s_modelWorld decide o slot 1.
+// up >> down. Inclui folga para glows/auras.
 static void WeaponVExtent(int weapon, float *up, float *down)
 {
     if (weapon == 5)           { *up = 1.95f; *down = 0.85f; } // lâmina bioelétrica

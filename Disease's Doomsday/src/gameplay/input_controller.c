@@ -4,7 +4,6 @@
 #include "../../include/asset_manager.h"
 #include "raymath.h"
 #include <stdio.h>
-#include <math.h>
 #include <string.h>
 
 extern UIButton menuButtons[8];
@@ -12,8 +11,6 @@ extern UIButton pauseButtons[5];
 extern UIButton controlsButton;
 extern UIButton gameOverButtons[2];
 extern UIButton victoryButtons[2];
-extern UIButton settingsButtons[4];
-extern UIButton settingsReturnBtn;
 
 extern UIButton settingsBtnVoltar;
 

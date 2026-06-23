@@ -1336,7 +1336,7 @@ void DrawTutorialHUD(GameState *game, Font font)
     float hpPctPlayer = (float)game->player.hp / game->player.maxHp;
     if (hpPctPlayer > 0.0f)
         DrawRectangleRounded((Rectangle){ 30, 46, 180.0f * hpPctPlayer, 10 }, 0.5f, 4, (Color){ 0, 220, 120, 255 });
-    char hpBuf[24];
+    char hpBuf[32];
     sprintf(hpBuf, "%d/%d HP", game->player.hp, game->player.maxHp);
     Vector2 hpSz = MeasureTextEx(font, hpBuf, 12.0f, 1.0f);
     DrawTextEx(font, hpBuf, (Vector2){ 220.0f - hpSz.x, 44.0f }, 12.0f, 1.0f, WHITE);

@@ -15,7 +15,7 @@ void DrawTelaUpgrade(GameState *game, Font font)
     DrawTextEx(font, title, (Vector2){ (SCREEN_WIDTH / 2.0f) - (titleSz.x / 2.0f), 80.0f }, 36.0f, 1.0f, THEME_COLOR_MAIN);
 
     char ptsTxt[32];
-    sprintf(ptsTxt, "Pontos do SUS Disponiveis: %d", game->player.susPoints);
+    snprintf(ptsTxt, sizeof(ptsTxt), "Pontos do SUS Disponiveis: %d", game->player.susPoints);
     Vector2 ptsSz = MeasureTextEx(font, ptsTxt, 20.0f, 1.0f);
     DrawTextEx(font, ptsTxt, (Vector2){ (SCREEN_WIDTH / 2.0f) - (ptsSz.x / 2.0f), 130.0f }, 20.0f, 1.0f, GOLD);
 

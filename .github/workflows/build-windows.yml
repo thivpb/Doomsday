@@ -1,0 +1,59 @@
+name: Build Windows (.exe)
+
+# Compila o jogo no Windows a cada push na branch main e publica o rpg_game.exe
+# atualizado na Release "latest". Assim seu amigo sempre baixa a versao atual,
+# sem precisar instalar compilador nenhum.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:        # permite rodar manualmente pelo botao "Run workflow"
+
+permissions:
+  contents: write           # necessario para criar/atualizar a Release
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar MSYS2 + GCC + raylib
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+          pacboy: >-
+            gcc:p
+            raylib:p
+            pkgconf:p
+
+      - name: Compilar o jogo (standalone .exe)
+        run: |
+          cd "Disease's Doomsday"
+          make win-release
+          ls -lh rpg_game.exe
+
+      - name: Guardar o .exe como artefato do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpg_game-windows
+          path: "Disease's Doomsday/rpg_game.exe"
+          if-no-files-found: error
+
+      - name: Publicar/atualizar a Release "latest"
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Ultima versao (build automatico)
+          body: |
+            Build automatico gerado a partir do ultimo commit em main.
+            Baixe o rpg_game.exe abaixo e de dois cliques para jogar.
+          files: "Disease's Doomsday/rpg_game.exe"
+          fail_on_unmatched_files: true
