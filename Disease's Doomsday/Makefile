@@ -103,16 +103,16 @@ test:
 # ---------------------------------------------------------------------------
 # Build de RELEASE para Windows (.exe) — usado pelo GitHub Actions.
 # Reutiliza a MESMA lista $(SRCS) acima, entao NUNCA fica desatualizado em
-# relacao ao codigo. Gera um rpg_game.exe AUTONOMO (raylib + runtime do GCC
-# linkados estaticamente): o amigo so baixa 1 arquivo e da dois cliques.
+# relacao ao codigo. No MSYS2, a Raylib empacotada referencia glfw3.dll; por
+# isso o ZIP de distribuicao deve levar o .exe, as DLLs detectadas e Assets.
 # Requer MSYS2/MINGW64 com: gcc, raylib, pkgconf, make.
 # ---------------------------------------------------------------------------
 win-release: $(SRCS)
 	$(CC) $(SRCS) -o $(TARGET).exe -O2 -Wall -Wno-missing-braces -Iinclude \
 	  $(shell pkg-config --cflags raylib) \
-	  $(shell pkg-config --static --libs raylib) \
-	  -lopengl32 -lgdi32 -lwinmm -lm -static -static-libgcc
-	@echo "[OK] $(TARGET).exe (standalone) gerado."
+	  $(shell pkg-config --libs raylib | sed 's/-lglfw3/-lglfw3dll/g') \
+	  -lopengl32 -lgdi32 -lwinmm -lm -static-libgcc
+	@echo "[OK] $(TARGET).exe gerado. Distribua junto com Assets e as DLLs do MSYS2."
 
 clean:
 	rm -f $(TARGET) test_core_spawns test_map_body test_rifle_range test_cosmetics test_virus_waves bake_collision_mask

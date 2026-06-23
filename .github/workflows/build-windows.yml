@@ -1,8 +1,9 @@
 name: Build Windows (.exe)
 
-# Compila o jogo no Windows a cada push na branch main e publica o rpg_game.exe
-# atualizado na Release "latest". Assim seu amigo sempre baixa a versao atual,
-# sem precisar instalar compilador nenhum.
+# A cada push na branch main, compila o jogo no Windows e publica um pacote
+# JOGAVEL (rpg_game.exe + a pasta Assets) na Release "latest". O jogo carrega
+# sprites/musica/fonte de disco em runtime, entao o .exe precisa vir junto com
+# a pasta Assets — por isso distribuimos um .zip, e nao o .exe sozinho.
 on:
   push:
     branches: [ main ]
@@ -28,22 +29,38 @@ jobs:
           update: true
           install: >-
             make
+            zip
           pacboy: >-
             gcc:p
             raylib:p
             pkgconf:p
 
-      - name: Compilar o jogo (standalone .exe)
+      - name: Compilar o jogo (.exe Windows)
         run: |
           cd "Disease's Doomsday"
           make win-release
           ls -lh rpg_game.exe
 
-      - name: Guardar o .exe como artefato do build
+      - name: Montar pacote jogavel (exe + DLLs + Assets)
+        run: |
+          cd "Disease's Doomsday"
+          rm -rf dist
+          mkdir -p "dist/Doomsday/Saves"
+          cp rpg_game.exe "dist/Doomsday/"
+          ldd rpg_game.exe \
+            | awk '/\/mingw64\/bin\// { print $3 }' \
+            | sort -u \
+            | xargs -r -I{} cp "{}" "dist/Doomsday/"
+          cp -r Assets "dist/Doomsday/"
+          cd dist
+          zip -r -q Doomsday-Windows.zip Doomsday
+          ls -lh Doomsday-Windows.zip
+
+      - name: Guardar o pacote como artefato do build
         uses: actions/upload-artifact@v4
         with:
-          name: rpg_game-windows
-          path: "Disease's Doomsday/rpg_game.exe"
+          name: Doomsday-Windows
+          path: "Disease's Doomsday/dist/Doomsday-Windows.zip"
           if-no-files-found: error
 
       - name: Publicar/atualizar a Release "latest"
@@ -54,6 +71,11 @@ jobs:
           name: Ultima versao (build automatico)
           body: |
             Build automatico gerado a partir do ultimo commit em main.
-            Baixe o rpg_game.exe abaixo e de dois cliques para jogar.
-          files: "Disease's Doomsday/rpg_game.exe"
+
+            COMO JOGAR (Windows):
+            1) Baixe o Doomsday-Windows.zip abaixo.
+            2) Extraia a pasta (botao direito -> Extrair tudo).
+            3) Abra a pasta Doomsday e de dois cliques no rpg_game.exe.
+            Nao mova o .exe para fora da pasta: Assets e as DLLs precisam ficar ao lado dele.
+          files: "Disease's Doomsday/dist/Doomsday-Windows.zip"
           fail_on_unmatched_files: true
