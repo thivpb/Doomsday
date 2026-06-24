@@ -341,7 +341,11 @@ void DrawPlayerModel(Player *player, float size, Color tint, float time, float a
     // Cores da skin da arma (aplicadas a TODOS os modelos de arma segurada)
     Color swordLiquid = WeaponSkinPrimary(player->weaponSkinId);
     Color swordGlow   = WeaponSkinSecondary(player->weaponSkinId);
-    int   heldWeapon  = (player->equippedWeapon >= 1 && player->equippedWeapon <= 5) ? player->equippedWeapon : 1;
+    // Aceita TODAS as armas (1..WEAPON_COUNT), incluindo as evoluções de "fase 2"
+    // (6 Rifle Vetorial Replicante, 7 Lança-Minas de RNA, 8 BFG Ômega) — cada uma
+    // tem seu próprio modelo em DrawHeldWeapon. Antes o clamp em <=5 fazia a arma
+    // segurada cair de volta para a Espada-Seringa durante o gameplay.
+    int   heldWeapon  = (player->equippedWeapon >= 1 && player->equippedWeapon <= WEAPON_COUNT) ? player->equippedWeapon : 1;
 
     // Pontos de ancoragem para os cosméticos (preenchidos por pose abaixo).
     PlayerAnchors anch = { 0 };

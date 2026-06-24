@@ -45,6 +45,10 @@ void DrawTooltip(Font font, const char *text, Vector2 anchor);
 // Fundo temático por tela (gradiente + células biológicas flutuantes). `entry`
 // (0..1) controla o fade de entrada; faz morph suave entre temas.
 void DrawThemedBackground(int screen, float time, float entry);
+// Recorte em coordenadas virtuais 1280x720. Converte para pixels reais da
+// janela, respeitando o letterbox/fullscreen aplicado em main.c.
+void BeginVirtualScissorMode(Rectangle r);
+void EndVirtualScissorMode(void);
 
 // ---- Helpers procedurais reutilizáveis do MENU (tema biológico/sci-fi) ----
 // Vírus (círculo com espículas + núcleo de RNA), bactéria (bastonete com cílios)
@@ -96,7 +100,7 @@ Rectangle SettingsSfxVolumeTrack(void);
 void DrawTelaDifficulty(GameState *game, Font font);
 void UpdateTelaDifficulty(GameState *game, Vector2 mouse);
 
-// Verifica (com cache de ~1s) se existe algum arquivo de save nos 3 slots.
+// Verifica (com cache de ~1s) se existe algum arquivo de save.
 // Evita abrir arquivos do disco a cada frame no menu.
 bool AnySaveExistsCached(void);
 
@@ -143,10 +147,10 @@ const char *GetLoadingTipText(int index);
 void DrawTelaSettings(GameState *game, Font font);
 void UpdateButtonsSettings(GameState *game, Vector2 mouse, GameScreen backScreen);
 // Funções de desenho e atualização das telas de seleção de save/load
-void DrawTelaSaveSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3]);
-void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3]);
-int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3]);
-int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3]);
+void DrawTelaSaveSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT]);
+void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT]);
+int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT]);
+int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT]);
 
 // Tela de Quiz Educacional
 void DrawTelaQuiz(GameState *game, Font font);
@@ -155,6 +159,10 @@ void UpdateTelaQuiz(GameState *game, Vector2 mouse);
 // Tela de Upgrade do SUS
 void DrawTelaUpgrade(GameState *game, Font font);
 void UpdateTelaUpgrade(GameState *game, Vector2 mouse);
+void DrawTelaStageComplete(GameState *game, Font font);
+void UpdateTelaStageComplete(GameState *game, Vector2 mouse);
+void DrawTelaStagePrologue(GameState *game, Font font);
+void UpdateTelaStagePrologue(GameState *game, Vector2 mouse);
 
 // Tela de Arsenal (detalhes de todas as armas)
 void DrawTelaArsenal(GameState *game, Font font);

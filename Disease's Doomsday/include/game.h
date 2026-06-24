@@ -38,9 +38,15 @@
 #define MAX_PARTICLES 250
 #define MAX_PROJECTILES 100
 #define MAX_DAMAGE_TEXTS 32
+#ifndef WEAPON_SLOT_COUNT
+#define WEAPON_SLOT_COUNT 4
+#endif
 #define MAX_CORES 4          // Núcleos de Infecção do escudo do chefe (fase 3)
 #define MAX_BOSS_MINIONS 8   // Limite de lacaios invocados ativos do chefe
 #define MAX_BIOMINES 12      // Minas do Desestabilizador de RNA ativas no chão
+#define MANUAL_SAVE_SLOTS 3
+#define AUTO_SAVE_SLOT 4
+#define SAVE_SLOT_COUNT 4
 
 // ----------------------------------------------------------------------------
 // MUNDOS (expansão: campanha em 2 Mundos temáticos)
@@ -78,7 +84,9 @@ typedef enum GameScreen
     SCREEN_SKINS,      // Tela de seleção de skins com preview
     SCREEN_ADMIN,      // Modo Administrador / Dev (protegido por senha)
     SCREEN_WORLD_TRANSITION, // Cutscene/tela educativa entre Mundo 1 (Bactérias) e Mundo 2 (Vírus)
-    SCREEN_DIFFICULTY_SELECT // Seleção de dificuldade (cards) ao iniciar/reiniciar um jogo
+    SCREEN_DIFFICULTY_SELECT, // Seleção de dificuldade (cards) ao iniciar/reiniciar um jogo
+    SCREEN_STAGE_COMPLETE,    // Pausa curta entre fim da onda e quiz
+    SCREEN_STAGE_PROLOGUE     // Prólogo breve antes da próxima onda
 } GameScreen;
 
 // ============================================================================
@@ -154,6 +162,8 @@ typedef enum PowerUpType
     POWERUP_DISTANCING,  // Distanciamento Social (Mundo 1): aura que repele inimigos
     POWERUP_RNA_GRENADE, // Desestabilizador de Ácidos Ribonucleicos (ambos): dano em área
     POWERUP_CYTOKINE,    // Citocina de Estabilização (ambos): regenera vida
+    POWERUP_SUPREME_ORB, // Orbe Supremo: todos os atributos fortes por pouco tempo
+    POWERUP_BARRIER,     // Barreira de Plasma: escudo reforçado visível
     POWERUP_TYPE_COUNT
 } PowerUpType;
 
@@ -216,6 +226,7 @@ typedef struct BioMine
     Vector2 position;
     bool active;
     float armTimer;
+    float autoDetonateTimer; // >0 explode sozinha ao zerar; 0 = apenas gatilhos manuais
     float pulse;
     int damage;
 } BioMine;
@@ -260,6 +271,7 @@ typedef struct GameState
     BioMine bioMines[MAX_BIOMINES];
     
     int totalEnemiesKilled;
+    int weaponKills[WEAPON_SLOT_COUNT]; // abates por slot de arma para evoluções
     int enemiesRemaining;
     int wave;
     Camera2D camera;
@@ -303,7 +315,7 @@ typedef struct GameState
     float hurtFlashTimer;
 
     // Metadados dos slots carregados na tela de seleção
-    SaveSlotMeta slotsMeta[3];
+    SaveSlotMeta slotsMeta[SAVE_SLOT_COUNT];
     
     // Configuracoes de audio independentes (persistidas em Saves/config.txt).
     float musicVolume;
@@ -347,6 +359,7 @@ typedef struct GameState
     // One-shot: avisamos uma única vez quando a Lâmina Bioelétrica abre
     // por abates (>= BIOBLADE_UNLOCK_KILLS). Recomputado no load a partir de kills.
     bool  bioBladeAnnounced;
+    bool  weaponEvolutionAnnounced[WEAPON_SLOT_COUNT];
 
     // ---- Escudo do Chefe (Fase 3): Núcleos de Infecção ----
     InfectionCore cores[MAX_CORES];

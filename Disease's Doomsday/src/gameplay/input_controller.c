@@ -172,7 +172,7 @@ bool UpdateButtonsMenu(GameState *game, Vector2 mouse)
     {
         if (anySaveExists)
         {
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < SAVE_SLOT_COUNT; i++)
             {
                 game->slotsMeta[i] = CarregarMetadadosSlot(i + 1);
             }
@@ -228,7 +228,7 @@ void UpdateButtonsPause(GameState *game, Vector2 mouse)
     else if (pauseButtons[1].clicked) // SALVAR
     {
         // Carrega metadados dos slots para a tela de salvamento
-        for (int j = 0; j < 3; j++)
+        for (int j = 0; j < MANUAL_SAVE_SLOTS; j++)
         {
             game->slotsMeta[j] = CarregarMetadadosSlot(j + 1);
         }
@@ -237,7 +237,7 @@ void UpdateButtonsPause(GameState *game, Vector2 mouse)
     else if (pauseButtons[2].clicked) // CARREGAR
     {
         // Carrega metadados dos slots para a tela de carregamento
-        for (int j = 0; j < 3; j++)
+        for (int j = 0; j < SAVE_SLOT_COUNT; j++)
         {
             game->slotsMeta[j] = CarregarMetadadosSlot(j + 1);
         }
@@ -327,10 +327,24 @@ void UpdateButtonsVitoria(GameState *game, Vector2 mouse)
 
 
 
-int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3])
+static void SaveFilePathForSlot(int slot, char *pathTxt, int txtSize, char *pathPng, int pngSize)
+{
+    if (slot == AUTO_SAVE_SLOT)
+    {
+        snprintf(pathTxt, txtSize, "Saves/auto_save.txt");
+        snprintf(pathPng, pngSize, "Saves/auto_save.png");
+    }
+    else
+    {
+        snprintf(pathTxt, txtSize, "Saves/save_slot_%d.txt", slot);
+        snprintf(pathPng, pngSize, "Saves/screenshot_slot_%d.png", slot);
+    }
+}
+
+int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT])
 {
     // Verifica cliques nos Cards
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < MANUAL_SAVE_SLOTS; i++)
     {
         float cardX = 80.0f + (float)i * 400.0f;
         Rectangle cardBounds = { cardX, 140, 320, 430 };
@@ -343,8 +357,7 @@ int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextur
             {
                 char pathTxt[64];
                 char pathPng[64];
-                sprintf(pathTxt, "Saves/save_slot_%d.txt", i + 1);
-                sprintf(pathPng, "Saves/screenshot_slot_%d.png", i + 1);
+                SaveFilePathForSlot(i + 1, pathTxt, sizeof(pathTxt), pathPng, sizeof(pathPng));
                 remove(pathTxt);
                 remove(pathPng);
 
@@ -367,7 +380,7 @@ int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextur
     }
 
     // Verifica clique no botão Voltar
-    UIButton btnVoltar = { { 490, 600, 300, 50 }, "VOLTAR", false, false };
+    UIButton btnVoltar = { { 490, 640, 300, 50 }, "VOLTAR", false, false };
     if (CheckCollisionPointRec(mouse, btnVoltar.bounds) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
     {
         return -1; // Sinaliza que clicou em voltar
@@ -376,24 +389,31 @@ int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextur
     return 0;
 }
 
-int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3])
+int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT])
 {
+    Rectangle autoBounds = { 80, 118, 1120, 112 };
+    if (game->slotsMeta[AUTO_SAVE_SLOT - 1].exists &&
+        CheckCollisionPointRec(mouse, autoBounds) &&
+        IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+    {
+        return AUTO_SAVE_SLOT;
+    }
+
     // Verifica cliques nos Cards (apenas slots que existem)
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < MANUAL_SAVE_SLOTS; i++)
     {
         float cardX = 80.0f + (float)i * 400.0f;
-        Rectangle cardBounds = { cardX, 140, 320, 430 };
+        Rectangle cardBounds = { cardX, 260, 320, 300 };
 
         if (game->slotsMeta[i].exists)
         {
             // Verifica primeiro clique no botão de Apagar
-            Rectangle deleteBounds = { cardX + 20, 495, 280, 35 };
+            Rectangle deleteBounds = { cardX + 20, 562, 280, 30 };
             if (CheckCollisionPointRec(mouse, deleteBounds) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
             {
                 char pathTxt[64];
                 char pathPng[64];
-                sprintf(pathTxt, "Saves/save_slot_%d.txt", i + 1);
-                sprintf(pathPng, "Saves/screenshot_slot_%d.png", i + 1);
+                SaveFilePathForSlot(i + 1, pathTxt, sizeof(pathTxt), pathPng, sizeof(pathPng));
                 remove(pathTxt);
                 remove(pathPng);
 
@@ -416,7 +436,7 @@ int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextur
     }
 
     // Verifica clique no botão Voltar
-    UIButton btnVoltar = { { 490, 600, 300, 50 }, "VOLTAR", false, false };
+    UIButton btnVoltar = { { 490, 650, 300, 50 }, "VOLTAR", false, false };
     if (CheckCollisionPointRec(mouse, btnVoltar.bounds) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
     {
         return -1; // Sinaliza que clicou em voltar
@@ -452,29 +472,4 @@ void UpdateButtonsSettings(GameState *game, Vector2 mouse, GameScreen backScreen
         }
     }
 
-    // Seletores de skin (mesmas posições do DrawTelaSettings)
-    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-    {
-        for (int row = 0; row < 2; row++)
-        {
-            float y = 390.0f + row * 65.0f;
-            Rectangle btnPrev = { 600, y, 40, 40 };
-            Rectangle btnNext = { 860, y, 40, 40 };
-
-            int dirClick = 0;
-            if (CheckCollisionPointRec(mouse, btnPrev)) dirClick = -1;
-            else if (CheckCollisionPointRec(mouse, btnNext)) dirClick = 1;
-            if (dirClick == 0) continue;
-
-            if (row == 0)
-            {
-                game->player.skinId = (game->player.skinId + dirClick + SKIN_COUNT) % SKIN_COUNT;
-            }
-            else
-            {
-                game->player.weaponSkinId = (game->player.weaponSkinId + dirClick + WEAPON_SKIN_COUNT) % WEAPON_SKIN_COUNT;
-            }
-            SavePlayerConfig(game);
-        }
-    }
 }

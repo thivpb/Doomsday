@@ -15,6 +15,8 @@ typedef enum ProjectileType
     PROJ_PLAYER_BFG,        // Vacina BFG
     PROJ_PLAYER_PHAGE,      // Rifle de Bacteriófagos (Mundo 1): bônus vs. bactérias
     PROJ_PLAYER_VACCINE,    // Rifle de Vacina (Mundo 2): bônus vs. vírus / escudo
+    PROJ_PLAYER_RIFLE_EVOLVED, // Rifle evoluído: duplica uma vez no primeiro impacto
+    PROJ_PLAYER_BFG_EVOLVED,   // BFG evoluído: perfura e explode ao fim
     PROJ_VIRAL_SPORE        // Material viral disparado pelos vírus atirador/elite/chefe
 } ProjectileType;
 
@@ -30,12 +32,15 @@ typedef struct Projectile
     float lifeTime; // Proteção SECUNDÁRIA (granada/BFG e backstop dos rifles)
     Vector2 origin; // Posição de disparo (mede a distância percorrida)
     float maxRange; // Alcance máximo em px; <= 0 = sem limite por alcance
+    int splitLevel; // rifle evoluído: 0 pode duplicar; 1 já é cópia
+    int sourceWeaponSlot; // slot que deve receber o abate se matar
 } Projectile;
 
 // Forward declaration of GameState
 struct GameState;
 
 void SpawnProjectile(struct GameState *game, Vector2 pos, Vector2 target, ProjectileType type, int dmg);
+void SpawnProjectileWithVelocity(struct GameState *game, Vector2 pos, Vector2 velocity, ProjectileType type, int dmg, int splitLevel);
 
 // Avança o projétil por dt: move, atualiza a hitbox e aplica os limites de
 // Fase 5 — ALCANCE percorrido (maxRange) e saída para o VOID do corpo (rifles

@@ -8,7 +8,7 @@
 // Distância aumentada com o mapa maior (~2x área) para espalhar a horda.
 static Vector2 PickSpawnFarFromPlayer(GameState *game)
 {
-    return MapBody_RandomPointInside(game->player.position, 600.0f);
+    return MapBody_FindSpawnPoint(MapBody_RandomPointInside(game->player.position, 600.0f), 70.0f);
 }
 
 // Configura o chefe final (Superbactéria KPC) num índice específico
@@ -83,7 +83,7 @@ static void SpawnEscortMinion(GameState *game, Vector2 pos)
         }
         else type = (GetRandomValue(0, 1) == 1) ? ETYPE_BACT_RANGED : ETYPE_BACT_MELEE;
         EnemyInitFromArchetype(e, type, game->wave, 1.0f); // hmul aplicado pelo loop global
-        e->position = pos;
+        e->position = MapBody_FindSpawnPoint(pos, 40.0f);
         e->active = true;
         e->patrolTarget = pos;
         e->tier = TIER_2;                       // escolta padronizada
@@ -145,7 +145,7 @@ void StartNextWave(GameState *game)
             spawnPos.x = bossPos.x + cosf(ang) * ring;
             spawnPos.y = bossPos.y + sinf(ang) * ring;
             // Mantém o anel de escolta dentro do corpo.
-            MapBody_ApplyCollision(&spawnPos, 30.0f);
+            spawnPos = MapBody_FindSpawnPoint(spawnPos, 45.0f);
             escort = true;
         }
         else
@@ -206,7 +206,7 @@ void StartNextWave(GameState *game)
                     float ang = (float)e / (float)escorts * 2.0f * PI;
                     Vector2 ep = { game->enemies[k].position.x + cosf(ang) * 140.0f,
                                    game->enemies[k].position.y + sinf(ang) * 140.0f };
-                    MapBody_ApplyCollision(&ep, 30.0f); // dentro do corpo
+                    ep = MapBody_FindSpawnPoint(ep, 42.0f); // dentro do corpo, com margem
                     SpawnEscortMinion(game, ep);
                 }
                 break;

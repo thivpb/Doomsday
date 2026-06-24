@@ -101,6 +101,15 @@ void DrawPlayerHero(GameState *game, Vector2 pPos, float playerSize)
         DrawCircleLines((int)game->player.position.x, (int)game->player.position.y, 46.0f,
                         Fade((Color){ 120, 220, 255, 255 }, 0.5f));
     }
+    if (game->player.shieldTimer > 0.0f)
+    {
+        float t = (float)GetTime();
+        float r = 54.0f + sinf(t * 5.0f) * 4.0f;
+        Color c = (game->player.supremeTimer > 0.0f) ? (Color){ 255, 220, 80, 255 } : (Color){ 90, 200, 255, 255 };
+        DrawCircleV(game->player.position, r, Fade(c, 0.08f));
+        DrawCircleLines((int)game->player.position.x, (int)game->player.position.y, r, Fade(c, 0.65f));
+        DrawCircleLines((int)game->player.position.x, (int)game->player.position.y, r * 0.84f, Fade(c, 0.30f));
+    }
 
     bool isBoosted = (game->player.attackBoostTimer > 0.0f);
     Color pCol = isBoosted ? GOLD : THEME_COLOR_MAIN;
@@ -344,6 +353,17 @@ void DrawHUD(GameState *game, Font font)
         buffCount++;
     }
 
+    if (game->player.supremeTimer > 0.0f)
+    {
+        Rectangle rBuff = { 20, 130.0f + (float)buffCount * 32.0f, 190, 26 };
+        DrawRectangleRec(rBuff, Fade((Color){ 18, 14, 6, 255 }, 0.82f));
+        DrawRectangle((int)rBuff.x, (int)rBuff.y, 4, (int)rBuff.height, GOLD);
+        DrawRectangleLinesEx(rBuff, 1.0f, Fade(GOLD, 0.35f));
+        DrawTextEx(font, TextFormat("SUPREMO: %.1fs", game->player.supremeTimer),
+                   (Vector2){ rBuff.x + 12, rBuff.y + 7 }, 12.0f, 1.0f, GOLD);
+        buffCount++;
+    }
+
     // ------------------------------------------------------------------------
     // HOTBAR DE ARMAS (centro-inferior): quatro slots. A Lâmina Bioelétrica é
     // variante do slot melee e alterna com a Espada-Seringa pela tecla 1.
@@ -355,17 +375,19 @@ void DrawHUD(GameState *game, Font font)
         float startX = (SCREEN_WIDTH - totalW) / 2.0f;
         float y = SCREEN_HEIGHT - slotH - 16.0f;
 
-        DrawTextEx(font, "ARMAS (teclas 1-4): 1 alterna a Lamina apos 30 abates", (Vector2){ startX, y - 20.0f }, 13.0f, 1.0f, Fade(WHITE, 0.7f));
+        const char *weaponHint = "ARMAS (teclas 1-4): evolucoes por abates individuais";
+        DrawTextEx(font, weaponHint, (Vector2){ startX, y - 20.0f }, 13.0f, 1.0f, Fade(WHITE, 0.7f));
 
         for (int s = 0; s < WEAPON_SLOT_COUNT; s++)
         {
             int weaponId = s + 1;
-            if (s == 0 && game->player.equippedWeapon == WEAPON_BIOBLADE) weaponId = WEAPON_BIOBLADE;
+            int slot = s + 1;
+            int evoId = WeaponEvolutionForSlot(slot);
+            if (WeaponSlotForId(game->player.equippedWeapon) == slot &&
+                game->player.equippedWeapon == evoId) weaponId = evoId;
             WeaponInfo wi = GetWeaponInfo(weaponId);
             bool unlocked = WeaponUnlocked(game, s + 1);
-            bool current  = (s == 0)
-                ? (game->player.equippedWeapon == 1 || game->player.equippedWeapon == WEAPON_BIOBLADE)
-                : (game->player.equippedWeapon == s + 1);
+            bool current = (WeaponSlotForId(game->player.equippedWeapon) == slot);
             Rectangle r = { startX + s * (slotW + gap), y, slotW, slotH };
 
             Color bg = current ? Fade(wi.color, 0.22f) : Fade((Color){ 10, 8, 22, 255 }, 0.8f);
@@ -394,10 +416,9 @@ void DrawHUD(GameState *game, Font font)
                 // efeito especial resumido
                 const char *tag = (s == 0)
                     ? ((game->player.equippedWeapon == WEAPON_BIOBLADE) ? "descarga anti-escudo" :
-                       (WeaponUnlocked(game, WEAPON_BIOBLADE) ? "1 alterna lamina" : TextFormat("%d abates p/ lamina", BIOBLADE_UNLOCK_KILLS)))
-                    : (s == 1) ? "rajada precisa"
-                    : (s == 2) ? "mouse 2 detona"
-                    : "perfurante";
+                       (WeaponUnlocked(game, evoId) ? "1 alterna lamina" : TextFormat("evolui em %d abates", WeaponKillsToEvolve(game, slot))))
+                    : WeaponUnlocked(game, evoId) ? TextFormat("%d alterna evolucao", slot)
+                    : TextFormat("evolui em %d abates", WeaponKillsToEvolve(game, slot));
                 DrawTextEx(font, tag, (Vector2){ r.x + 30, r.y + 31 }, 12.0f, 1.0f, Fade(wi.color, 0.9f));
 
                 // Barra de cooldown apenas na arma equipada
@@ -654,6 +675,8 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
             else if (game->powerUps[i].type == POWERUP_DISTANCING) { itemCol = (Color){ 120, 255, 200, 255 }; itemSpr = SPR_ITEM_DISTANCING; }
             else if (game->powerUps[i].type == POWERUP_RNA_GRENADE) { itemCol = (Color){ 120, 255, 160, 255 }; itemSpr = SPR_ITEM_RNA_GRENADE; }
             else if (game->powerUps[i].type == POWERUP_CYTOKINE) { itemCol = (Color){ 80, 230, 140, 255 }; itemSpr = SPR_ITEM_CYTOKINE; }
+            else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) { itemCol = (Color){ 255, 220, 80, 255 }; }
+            else if (game->powerUps[i].type == POWERUP_BARRIER) { itemCol = (Color){ 90, 200, 255, 255 }; }
 
             DrawCircleV(pos, pulse + 4.0f, Fade(itemCol, 0.3f));
 
@@ -694,6 +717,14 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
                 } else if (game->powerUps[i].type == POWERUP_CYTOKINE) {
                     DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
                     DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
+                } else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) {
+                    DrawCircleV(pos, 7.0f, WHITE);
+                    DrawCircleLines((int)pos.x, (int)pos.y, 12.0f, WHITE);
+                    DrawLineEx((Vector2){pos.x - 10, pos.y}, (Vector2){pos.x + 10, pos.y}, 1.5f, WHITE);
+                    DrawLineEx((Vector2){pos.x, pos.y - 10}, (Vector2){pos.x, pos.y + 10}, 1.5f, WHITE);
+                } else if (game->powerUps[i].type == POWERUP_BARRIER) {
+                    DrawCircleLines((int)pos.x, (int)pos.y, 10.0f, WHITE);
+                    DrawTriangle((Vector2){pos.x, pos.y - 9}, (Vector2){pos.x - 8, pos.y + 5}, (Vector2){pos.x + 8, pos.y + 5}, WHITE);
                 }
             }
         }
@@ -866,6 +897,38 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
         if (!m->active) continue;
         float pulse = 0.5f + 0.5f * sinf(m->pulse * 7.0f);
         Color armed = (m->armTimer > 0.0f) ? Fade(GRAY, 0.75f) : (Color){ 90, 255, 180, 255 };
+
+        // LANÇA-MINAS DE RNA (evolução do slot 3): mina ARREMESSADA com pavio
+        // automático (autoDetonateTimer > 0). Cápsula com fita de RNA (dupla hélice)
+        // girando e um anel de contagem regressiva do pavio — bem distinta da mina
+        // plantada (base), que continua com o visual original abaixo.
+        if (m->autoDetonateTimer > 0.0f)
+        {
+            float tt = (float)GetTime();
+            Color rna = (m->armTimer > 0.0f) ? Fade((Color){ 175, 135, 215, 255 }, 0.85f)
+                                             : (Color){ 210, 120, 255, 255 };
+            float frac = m->autoDetonateTimer / RNA_LAUNCHER_FUSE;
+            if (frac > 1.0f) frac = 1.0f; else if (frac < 0.0f) frac = 0.0f;
+            DrawCircleV(m->position, 19.0f + pulse * 3.0f, Fade(rna, 0.16f));
+            // Anel-pavio: arco que encolhe conforme o tempo até a detonação passa.
+            DrawRing(m->position, 15.0f, 18.0f, -90.0f, -90.0f + 360.0f * frac, 36, Fade(rna, 0.85f));
+            // Dupla hélice de RNA (duas senoides cruzadas que giram no tempo).
+            for (int s = 0; s < 12; s++)
+            {
+                float t0 = s / 12.0f;
+                float ph = tt * 3.2f + t0 * PI * 3.2f;
+                float yy = (t0 - 0.5f) * 28.0f;
+                float xx = cosf(ph) * 8.5f;
+                Vector2 h1 = { m->position.x + xx, m->position.y + yy };
+                Vector2 h2 = { m->position.x - xx, m->position.y + yy };
+                if (s % 2 == 0) DrawLineEx(h1, h2, 1.4f, Fade(rna, 0.55f)); // "degraus" do RNA
+                DrawCircleV(h1, 2.6f, rna);
+                DrawCircleV(h2, 2.6f, Fade(rna, 0.75f));
+            }
+            DrawCircleV(m->position, 4.0f + pulse * 1.5f, WHITE);
+            continue;
+        }
+
         DrawCircleV(m->position, 18.0f + pulse * 3.0f, Fade(armed, 0.16f));
         DrawCircleLines(m->position.x, m->position.y, 16.0f + pulse * 2.0f, Fade(armed, 0.75f));
         DrawCircleV(m->position, 7.0f, (Color){ 40, 24, 56, 255 });
@@ -892,11 +955,33 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
             else if (p->type == PROJ_PLAYER_RIFLE) pCol = wpnPrim;   // skin da arma
             else if (p->type == PROJ_PLAYER_GRENADE) pCol = ORANGE;
             else if (p->type == PROJ_PLAYER_BFG) pCol = wpnPrim;
+            else if (p->type == PROJ_PLAYER_RIFLE_EVOLVED) pCol = (Color){ 255, 170, 90, 255 };
+            else if (p->type == PROJ_PLAYER_BFG_EVOLVED) pCol = (Color){ 255, 230, 90, 255 };
             else if (p->type == PROJ_PLAYER_PHAGE) pCol = (Color){ 120, 255, 160, 255 };   // bacteriófago (verde)
             else if (p->type == PROJ_PLAYER_VACCINE) pCol = (Color){ 120, 200, 255, 255 }; // vacina (azul)
             else if (p->type == PROJ_VIRAL_SPORE) pCol = (Color){ 190, 235, 90, 255 };     // material viral
 
-            if (p->type == PROJ_PLAYER_BFG) {
+            if (p->type == PROJ_PLAYER_BFG_EVOLVED) {
+                // BFG IMUNOLOGICO OMEGA: singularidade em camadas — halo duplo, dois
+                // anéis contrarrotativos, coroa de nós orbitais (Ômega) e núcleo
+                // ciano incandescente. Bem distinto do orbe simples do BFG base.
+                srcSize = 34.0f;
+                float tt = (float)GetTime();
+                Color omega = (Color){ 255, 230, 90, 255 };
+                Color core  = (Color){ 150, 255, 230, 255 };
+                DrawCircleGradient((int)p->position.x, (int)p->position.y, srcSize * 1.5f, Fade(omega, 0.30f), BLANK);
+                DrawCircleGradient((int)p->position.x, (int)p->position.y, srcSize, omega, BLANK);
+                DrawRing(p->position, srcSize * 0.92f, srcSize * 1.05f, tt * 120.0f, tt * 120.0f + 260.0f, 32, Fade(core, 0.80f));
+                DrawRing(p->position, srcSize * 0.64f, srcSize * 0.76f, -tt * 165.0f, -tt * 165.0f + 220.0f, 28, Fade(omega, 0.85f));
+                for (int n = 0; n < 6; n++) {
+                    float a = tt * 1.6f + n * (PI / 3.0f);
+                    Vector2 q = { p->position.x + cosf(a) * srcSize * 1.12f, p->position.y + sinf(a) * srcSize * 1.12f };
+                    DrawCircleV(q, 3.5f, Fade(core, 0.9f));
+                }
+                DrawCircleV(p->position, srcSize * 0.42f, omega);
+                DrawCircleV(p->position, srcSize * 0.20f, core);
+                DrawCircleV(p->position, srcSize * 0.09f, WHITE);
+            } else if (p->type == PROJ_PLAYER_BFG) {
                 srcSize = 30.0f;
                 DrawCircleGradient((int)p->position.x, (int)p->position.y, srcSize, pCol, BLANK);
                 DrawCircleLines(p->position.x, p->position.y, srcSize, wpnSec);
@@ -904,7 +989,34 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
                 srcSize = 15.0f;
                 DrawCircle(p->position.x, p->position.y, srcSize, pCol);
                 DrawCircleLines(p->position.x, p->position.y, srcSize, wpnPrim);
-            } else if (p->type == PROJ_PLAYER_RIFLE || p->type == PROJ_PLAYER_PHAGE || p->type == PROJ_PLAYER_VACCINE) {
+            } else if (p->type == PROJ_PLAYER_RIFLE_EVOLVED) {
+                // RIFLE VETORIAL REPLICANTE: dardo âmbar instável que telegrafa a
+                // duplicação — rastro principal + dois rastros bifurcados (fork) e
+                // duas fagulhas-clone orbitando o núcleo branco-quente.
+                float tt = (float)GetTime();
+                Color amber = (Color){ 255, 170, 90, 255 };
+                Color hot   = (Color){ 255, 245, 190, 255 };
+                Vector2 dir = Vector2Normalize(p->velocity);
+                if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ 1.0f, 0.0f };
+                Vector2 perp = { -dir.y, dir.x };
+                Vector2 back = Vector2Subtract(p->position, Vector2Scale(dir, 26.0f));
+                Vector2 forkA = Vector2Add(back, Vector2Scale(perp, 7.0f));
+                Vector2 forkB = Vector2Subtract(back, Vector2Scale(perp, 7.0f));
+                DrawLineEx(forkA, p->position, 2.5f, Fade(amber, 0.35f));
+                DrawLineEx(forkB, p->position, 2.5f, Fade(amber, 0.35f));
+                DrawLineEx(back, p->position, 5.0f, Fade(amber, 0.55f));
+                DrawCircleGradient((int)p->position.x, (int)p->position.y, 15.0f, Fade(amber, 0.30f), BLANK);
+                float ang = atan2f(dir.y, dir.x) * RAD2DEG;
+                DrawPoly(p->position, 4, 11.0f, ang, amber);
+                DrawPolyLinesEx(p->position, 4, 11.0f, ang, 2.0f, hot);
+                for (int c = 0; c < 2; c++) {
+                    float a = tt * 9.0f + c * PI;
+                    Vector2 q = { p->position.x + cosf(a) * 11.0f, p->position.y + sinf(a) * 11.0f };
+                    DrawCircleV(q, 3.0f, Fade(hot, 0.95f));
+                }
+                DrawCircleV(p->position, 3.8f, hot);
+            } else if (p->type == PROJ_PLAYER_RIFLE || p->type == PROJ_PLAYER_PHAGE ||
+                       p->type == PROJ_PLAYER_VACCINE) {
                 // Projétil do jogador mais legível: rastro curto + núcleo brilhante
                 Color coreCol = (p->type == PROJ_PLAYER_RIFLE) ? wpnSec : WHITE;
                 Vector2 tail = Vector2Subtract(p->position, Vector2Scale(Vector2Normalize(p->velocity), 22.0f));
@@ -1176,6 +1288,8 @@ void DrawTutorialWorld(GameState *game, Font font)
             else if (game->powerUps[i].type == POWERUP_DISTANCING) { itemCol = (Color){ 120, 255, 200, 255 }; itemSpr = SPR_ITEM_DISTANCING; }
             else if (game->powerUps[i].type == POWERUP_RNA_GRENADE) { itemCol = (Color){ 120, 255, 160, 255 }; itemSpr = SPR_ITEM_RNA_GRENADE; }
             else if (game->powerUps[i].type == POWERUP_CYTOKINE) { itemCol = (Color){ 80, 230, 140, 255 }; itemSpr = SPR_ITEM_CYTOKINE; }
+            else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) { itemCol = (Color){ 255, 220, 80, 255 }; }
+            else if (game->powerUps[i].type == POWERUP_BARRIER) { itemCol = (Color){ 90, 200, 255, 255 }; }
 
             DrawCircleV(pos, pulse + 4.0f, Fade(itemCol, 0.3f));
 
@@ -1216,6 +1330,14 @@ void DrawTutorialWorld(GameState *game, Font font)
                 } else if (game->powerUps[i].type == POWERUP_CYTOKINE) {
                     DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
                     DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
+                } else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) {
+                    DrawCircleV(pos, 7.0f, WHITE);
+                    DrawCircleLines((int)pos.x, (int)pos.y, 12.0f, WHITE);
+                    DrawLineEx((Vector2){pos.x - 10, pos.y}, (Vector2){pos.x + 10, pos.y}, 1.5f, WHITE);
+                    DrawLineEx((Vector2){pos.x, pos.y - 10}, (Vector2){pos.x, pos.y + 10}, 1.5f, WHITE);
+                } else if (game->powerUps[i].type == POWERUP_BARRIER) {
+                    DrawCircleLines((int)pos.x, (int)pos.y, 10.0f, WHITE);
+                    DrawTriangle((Vector2){pos.x, pos.y - 9}, (Vector2){pos.x - 8, pos.y + 5}, (Vector2){pos.x + 8, pos.y + 5}, WHITE);
                 }
             }
         }

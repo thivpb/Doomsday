@@ -32,8 +32,9 @@ void SpawnPowerUpAt(GameState *game, Vector2 position, int type);
 // O chamador é responsável por colocar o inimigo em estado DEATH.
 void RegisterEnemyKill(GameState *game, Enemy *enemy);
 
-// Salva o progresso do jogo atual em um slot específico (1, 2 ou 3)
+// Salva o progresso do jogo atual em um slot específico (1..3 manuais, 4 autosave)
 void SalvarJogoSlot(GameState *game, int slot);
+void SalvarJogoSlotSilencioso(GameState *game, int slot);
 
 // Carrega o progresso do jogo a partir de um slot específico (1, 2 ou 3)
 void CarregarJogoSlot(GameState *game, int slot);
@@ -71,12 +72,20 @@ void ShowBanner(GameState *game, const char *msg, const char *sub, Color color, 
 void UpdateBanner(GameState *game, float delta);
 
 // ---- Armas / progressão ----
-// Total de entradas no arsenal. A Lâmina Bioelétrica mantém ID 5 por
-// compatibilidade, mas na gameplay divide o slot 1 com a Espada-Seringa.
-#define WEAPON_COUNT           5
+// Total de entradas no arsenal. As evoluções dividem os mesmos 4 slots de jogo.
+#define WEAPON_COUNT           8
+#ifndef WEAPON_SLOT_COUNT
 #define WEAPON_SLOT_COUNT      4
+#endif
 #define WEAPON_BIOBLADE        5    // Lâmina Bioelétrica (melee anti-capsídeo desbloqueável)
-#define BIOBLADE_UNLOCK_KILLS  30   // abates necessários para desbloquear a Lâmina Bioelétrica
+#define WEAPON_RIFLE_EVOLVED   6    // Rifle Vetorial Replicante
+#define WEAPON_RNA_LAUNCHER    7    // Lança-Minas de RNA
+#define WEAPON_BFG_EVOLVED     8    // BFG Imunológico Ômega
+#define WEAPON_EVOLVE_KILLS    30   // abates por slot necessários para evoluir
+#define BIOBLADE_UNLOCK_KILLS  WEAPON_EVOLVE_KILLS
+#define RNA_LAUNCHER_FUSE      6.0f // pavio (s) da mina ARREMESSADA pelo Lança-Minas
+                                    // de RNA (slot 3 evoluído). Usado no disparo e no
+                                    // anel de contagem regressiva do render.
 
 // Informações de uma arma para HUD, Arsenal e Tutorial (fonte única da verdade)
 typedef struct WeaponInfo
@@ -100,6 +109,12 @@ WeaponInfo GetWeaponInfo(int weapon);
 int  WeaponUnlockLevel(int weapon);
 // Nome curto da arma (1..5)
 const char *WeaponName(int weapon);
+int  WeaponSlotForId(int weapon);
+int  WeaponEvolutionForSlot(int slot);
+int  WeaponBaseForSlot(int slot);
+int  WeaponKillCountForSlot(GameState *game, int slot);
+int  WeaponKillsToEvolve(GameState *game, int slot);
+bool WeaponIsEvolution(int weapon);
 // true se a arma está desbloqueada para este estado de jogo: armas 1-4 por
 // progressão de nível (maxWeaponUnlocked); Lâmina Bioelétrica por abates
 // (totalEnemiesKilled >= BIOBLADE_UNLOCK_KILLS). Fonte única usada por troca/arsenal.
@@ -144,6 +159,7 @@ bool EnemyIsViral(int type);
 
 // ---- Minas do Desestabilizador de RNA ----
 void PlantBioMine(GameState *game, Vector2 pos, int dmg);
+void PlantBioMineTimed(GameState *game, Vector2 pos, int dmg, float autoDetonateTimer);
 bool TriggerBioMinesInRadius(GameState *game, Vector2 pos, float radius);
 bool DetonateAllBioMines(GameState *game);
 

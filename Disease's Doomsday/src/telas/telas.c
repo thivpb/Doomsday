@@ -16,11 +16,47 @@
 #include <string.h>
 #include "rlgl.h"
 
+extern float g_scale;
+extern Vector2 g_mouseOffset;
 extern Vector2 g_virtualMouse;
 
 static float EaseOutCubic(float t) {
     t -= 1.0f;
     return t * t * t + 1.0f;
+}
+
+void BeginVirtualScissorMode(Rectangle r)
+{
+    int x = (int)floorf(g_mouseOffset.x + r.x * g_scale);
+    int y = (int)floorf(g_mouseOffset.y + r.y * g_scale);
+    int right = (int)ceilf(g_mouseOffset.x + (r.x + r.width) * g_scale);
+    int bottom = (int)ceilf(g_mouseOffset.y + (r.y + r.height) * g_scale);
+
+    BeginScissorMode(x, y, right - x, bottom - y);
+}
+
+void EndVirtualScissorMode(void)
+{
+    EndScissorMode();
+}
+
+static Rectangle VisibleVirtualScreenRect(void)
+{
+    float scale = (g_scale > 0.0f) ? g_scale : 1.0f;
+    return (Rectangle){
+        -g_mouseOffset.x / scale,
+        -g_mouseOffset.y / scale,
+        (float)GetScreenWidth() / scale,
+        (float)GetScreenHeight() / scale
+    };
+}
+
+static void DrawVisibleVirtualGradientV(Color top, Color bottom)
+{
+    Rectangle r = VisibleVirtualScreenRect();
+    DrawRectangleGradientV((int)floorf(r.x), (int)floorf(r.y),
+                           (int)ceilf(r.width), (int)ceilf(r.height),
+                           top, bottom);
 }
 
 // ============================================================================
@@ -36,10 +72,11 @@ bool AnySaveExistsCached(void)
     {
         lastCheck = now;
         cached = false;
-        for (int i = 1; i <= 3; i++)
+        for (int i = 1; i <= SAVE_SLOT_COUNT; i++)
         {
             char path[64];
-            sprintf(path, "Saves/save_slot_%d.txt", i);
+            if (i == AUTO_SAVE_SLOT) snprintf(path, sizeof(path), "Saves/auto_save.txt");
+            else snprintf(path, sizeof(path), "Saves/save_slot_%d.txt", i);
             if (FileExists(path))
             {
                 cached = true;
@@ -62,25 +99,25 @@ UIButton menuButtons[] = {
     { { 470, 446, 340, 36 }, "ARSENAL (ARMAS)", false, false },
     { { 470, 488, 340, 36 }, "SKINS", false, false },
     { { 470, 530, 340, 36 }, "TUTORIAL", false, false },
-    { { 470, 572, 340, 36 }, "CONFIG", false, false },
+    { { 470, 572, 340, 36 }, "CONFIGURACOES", false, false },
     { { 470, 614, 340, 36 }, "MODO ADMIN", false, false },
     { { 470, 656, 340, 36 }, "SAIR", false, false }
 };
 #define MENU_BTN_COUNT ((int)(sizeof(menuButtons) / sizeof(menuButtons[0])))
 
 UIButton pauseButtons[] = {
-    { { 500, 210, 280, 40 }, "RESUME GAME", false, false },
-    { { 500, 260, 280, 40 }, "SAVE PROGRESS", false, false },
-    { { 500, 310, 280, 40 }, "LOAD PREVIOUS", false, false },
-    { { 500, 360, 280, 40 }, "SETTINGS", false, false },
-    { { 500, 410, 280, 40 }, "MAIN MENU", false, false }
+    { { 500, 210, 280, 40 }, "CONTINUAR", false, false },
+    { { 500, 260, 280, 40 }, "SALVAR PROGRESSO", false, false },
+    { { 500, 310, 280, 40 }, "CARREGAR SAVE", false, false },
+    { { 500, 360, 280, 40 }, "CONFIGURACOES", false, false },
+    { { 500, 410, 280, 40 }, "MENU PRINCIPAL", false, false }
 };
 
 UIButton controlsButton = { { 490, 660, 300, 42 }, "VOLTAR", false, false };
 
 UIButton gameOverButtons[] = {
-    { { 490, 390, 300, 50 }, "TRY AGAIN", false, false },
-    { { 490, 460, 300, 50 }, "MAIN MENU", false, false }
+    { { 490, 390, 300, 50 }, "TENTAR NOVAMENTE", false, false },
+    { { 490, 460, 300, 50 }, "MENU PRINCIPAL", false, false }
 };
 
 UIButton victoryButtons[] = {
@@ -427,8 +464,8 @@ void DrawUIToast(Font font, const char *text, Color accent, float alpha)
     DrawTextEx(font, text, (Vector2){ r.x + pad, r.y + pad / 2.0f }, fs, 1.0f, Fade(WHITE, alpha));
 }
 
-Rectangle SettingsMusicVolumeTrack(void) { return (Rectangle){ 600.0f, 229.0f, 250.0f, 16.0f }; }
-Rectangle SettingsSfxVolumeTrack(void)   { return (Rectangle){ 600.0f, 274.0f, 250.0f, 16.0f }; }
+Rectangle SettingsMusicVolumeTrack(void) { return (Rectangle){ 555.0f, 292.0f, 300.0f, 16.0f }; }
+Rectangle SettingsSfxVolumeTrack(void)   { return (Rectangle){ 555.0f, 348.0f, 300.0f, 16.0f }; }
 
 // ============================================================================
 // HELPERS PROCEDURAIS DO MENU (vírus, bactéria, biohazard, fundo, título neon)
@@ -487,10 +524,13 @@ void DrawMenuBackground(Color accent, float time, float entry)
     // Fundo azul-marinho quase preto (referência) com leve morph do acento.
     Color top = (Color){ 9, 13, 30, 255 };
     Color bot = (Color){ 4, 6, 16, 255 };
-    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, top, bot);
+    Rectangle visible = VisibleVirtualScreenRect();
+    DrawVisibleVirtualGradientV(top, bot);
     // brilho de acento "respirando" no topo (segue o item destacado)
     float breath = 0.06f + 0.03f * sinf(time * 1.5f);
-    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, 220, Fade(accent, breath * entry), Fade(accent, 0.0f));
+    DrawRectangleGradientV((int)floorf(visible.x), (int)floorf(visible.y),
+                           (int)ceilf(visible.width), 220,
+                           Fade(accent, breath * entry), Fade(accent, 0.0f));
 
     float fade = UIEase(entry);
 
@@ -1000,7 +1040,7 @@ void DrawMenuFXBackground(float time, float entry)
 {
     float dt = GetFrameTime();
     if (!MFX.init) MenuFX_Init();
-    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){ 9, 13, 30, 255 }, (Color){ 4, 6, 16, 255 });
+    DrawVisibleVirtualGradientV((Color){ 9, 13, 30, 255 }, (Color){ 4, 6, 16, 255 });
     MenuFX_Update(dt, time);
     MenuFX_DrawOrganisms(0.00f, 0.60f, time, entry);   // organismos distantes
     MenuFX_DrawSyringes(0.00f, 0.70f, entry);          // seringas distantes
@@ -1054,9 +1094,15 @@ void DrawTelaMenu(GameState *game, Font font, float time)
         (unsigned char)(curAccent.b + (morphAccent.b - curAccent.b) * k), 255 };
 
     // Fundo azul-marinho quase preto + brilho de acento no topo + vinheta inferior.
-    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, (Color){ 9, 13, 30, 255 }, (Color){ 4, 6, 16, 255 });
-    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, 150, Fade(curAccent, (0.05f + 0.03f * sinf(time * 1.5f)) * entry), Fade(curAccent, 0.0f));
-    DrawRectangleGradientV(0, SCREEN_HEIGHT - 90, SCREEN_WIDTH, 90, Fade(BLACK, 0.0f), Fade(BLACK, 0.4f));
+    Rectangle visible = VisibleVirtualScreenRect();
+    DrawVisibleVirtualGradientV((Color){ 9, 13, 30, 255 }, (Color){ 4, 6, 16, 255 });
+    DrawRectangleGradientV((int)floorf(visible.x), (int)floorf(visible.y),
+                           (int)ceilf(visible.width), 150,
+                           Fade(curAccent, (0.05f + 0.03f * sinf(time * 1.5f)) * entry),
+                           Fade(curAccent, 0.0f));
+    DrawRectangleGradientV((int)floorf(visible.x), SCREEN_HEIGHT - 90,
+                           (int)ceilf(visible.width), (int)ceilf(visible.y + visible.height - (SCREEN_HEIGHT - 90)),
+                           Fade(BLACK, 0.0f), Fade(BLACK, 0.4f));
 
     // FX do fundo (PARTE 7 — ordem de camadas): atualiza tudo e desenha por
     // profundidade, intercalando seringas e explosões entre os organismos.
@@ -1559,13 +1605,16 @@ static void DrawTutContent(GameState *game, Font font, Rectangle panel)
             const float gapX = 18.0f;
             const float gapY = 18.0f;
             const float viewH = panel.height - 18.0f;
-            const float contentH = headerH + 3.0f * cardH + 2.0f * gapY + 12.0f;
+            // 4 linhas de cards + cabeçalho + margem inferior. ATENÇÃO: este mesmo
+            // cálculo é repetido em UpdateTelaTutorial (rolagem) — mantenha os dois
+            // idênticos, senão a roda do mouse limita a rolagem antes do conteúdo.
+            const float contentH = headerH + 4.0f * cardH + 3.0f * gapY + 24.0f;
             const float maxScroll = contentH - viewH;
             if (g_tutWeaponsScroll < 0.0f) g_tutWeaponsScroll = 0.0f;
             if (g_tutWeaponsScroll > maxScroll) g_tutWeaponsScroll = maxScroll;
 
             float sy = y - g_tutWeaponsScroll;
-            DrawTextEx(font, "Quatro slots. O slot 1 vira dupla melee apos 30 abates. Role para ver tudo.",
+            DrawTextEx(font, "Quatro slots. Cada arma evolui com 30 abates proprios. Role para ver tudo.",
                        (Vector2){ x, sy }, 18.0f, 1.0f, Fade(WHITE, 0.88f));
             sy += headerH;
 
@@ -1576,11 +1625,18 @@ static void DrawTutContent(GameState *game, Font font, Rectangle panel)
             sy += cardH + gapY;
             DrawTutorialWeaponCard(font, (Rectangle){ x, sy, cardW, cardH }, 2, "SLOT 2 / NIVEL 2",
                                    "Tiro preciso para finalizar alvos em linha e controlar distancia.", wp, ws, t);
-            DrawTutorialWeaponCard(font, (Rectangle){ x + cardW + gapX, sy, cardW, cardH }, 3, "SLOT 3 / NIVEL 3",
+            DrawTutorialWeaponCard(font, (Rectangle){ x + cardW + gapX, sy, cardW, cardH }, WEAPON_RIFLE_EVOLVED, "SLOT 2 / 30 ABATES",
+                                   "Projeteis replicantes criam um disparo extra no primeiro impacto.", wp, ws, t);
+            sy += cardH + gapY;
+            DrawTutorialWeaponCard(font, (Rectangle){ x, sy, cardW, cardH }, 3, "SLOT 3 / NIVEL 3",
                                    "Planta minas no chao; aperte mouse 2 para detonar todas.", wp, ws, t);
+            DrawTutorialWeaponCard(font, (Rectangle){ x + cardW + gapX, sy, cardW, cardH }, WEAPON_RNA_LAUNCHER, "SLOT 3 / 30 ABATES",
+                                   "Arremessa minas a distancia; elas explodem em 6s ou com mouse 2.", wp, ws, t);
             sy += cardH + gapY;
             DrawTutorialWeaponCard(font, (Rectangle){ x, sy, cardW, cardH }, 4, "SLOT 4 / NIVEL 4",
                                    "Projetil pesado perfurante para limpar corredores e chefes.", wp, ws, t);
+            DrawTutorialWeaponCard(font, (Rectangle){ x + cardW + gapX, sy, cardW, cardH }, WEAPON_BFG_EVOLVED, "SLOT 4 / 30 ABATES",
+                                   "Atravessa inimigos e explode em area no fim do trajeto.", wp, ws, t);
 
             if (maxScroll > 0.0f)
             {
@@ -1778,12 +1834,12 @@ void DrawTelaControles(GameState *game, Font font)
     float ta = UIEase(tabAnim / 0.3f);
     Rectangle panel = { 358.0f, 207.0f, 842.0f, 389.0f };
     DrawUISectionPanel(font, panel, NULL, acc, entry);
-    BeginScissorMode((int)panel.x, (int)panel.y, (int)panel.width, (int)panel.height);
+    BeginVirtualScissorMode(panel);
     rlPushMatrix();
     rlTranslatef((1.0f - ta) * 36.0f, 0.0f, 0.0f);
     DrawTutContent(game, font, panel);
     rlPopMatrix();
-    EndScissorMode();
+    EndVirtualScissorMode();
 
     const char *tutorialHint = "SETAS / W-S: navegar   |   clique para selecionar   |   ESC: voltar";
     DrawTextEx(font, tutorialHint,
@@ -1813,7 +1869,10 @@ void UpdateTelaTutorial(GameState *game, Vector2 mouse)
     {
         Rectangle weaponsPanel = { 358.0f, 207.0f, 842.0f, 389.0f };
         float wheel = GetMouseWheelMove();
-        const float contentH = 38.0f + 3.0f * 190.0f + 2.0f * 18.0f + 12.0f;
+        // DEVE casar com o contentH de DrawTutContent (4 linhas de cards): headerH
+        // (38) + 4*cardH (190) + 3*gapY (18) + margem inferior (24). Antes usava 3
+        // linhas, e por isso não dava para rolar até a última arma (slot 4).
+        const float contentH = 38.0f + 4.0f * 190.0f + 3.0f * 18.0f + 24.0f;
         const float viewH = weaponsPanel.height - 18.0f;
         float maxScroll = contentH - viewH;
         if (maxScroll < 0.0f) maxScroll = 0.0f;
@@ -2107,7 +2166,7 @@ void DrawSciFiBox(Rectangle r, Color col)
 // 8. TELAS DE SELEÇÃO DE SAVE E LOAD
 // ============================================================================
 
-void DrawTelaSaveSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3])
+void DrawTelaSaveSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT])
 {
     // Fundo escuro translúcido para revelar a run desfocada/limpa no fundo
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade((Color){ 10, 8, 22, 255 }, 0.75f));
@@ -2117,12 +2176,12 @@ void DrawTelaSaveSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
     Vector2 titleSize = MeasureTextEx(font, titulo, 42.0f, 1.5f);
     DrawTextEx(font, titulo, (Vector2){ (SCREEN_WIDTH / 2.0f) - (titleSize.x / 2.0f), 40.0f }, 42.0f, 1.5f, SKYBLUE);
     
-    const char *sub = "Choose a slot to save the current game";
+    const char *sub = "Choose a manual slot. Autosave is separate and cannot be overwritten here.";
     Vector2 subSize = MeasureTextEx(font, sub, 18.0f, 1.0f);
     DrawTextEx(font, sub, (Vector2){ (SCREEN_WIDTH / 2.0f) - (subSize.x / 2.0f), 90.0f }, 18.0f, 1.0f, GRAY);
 
     // 3 Slots Cards
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < MANUAL_SAVE_SLOTS; i++)
     {
         float cardX = 80.0f + (float)i * 400.0f;
         Rectangle cardBounds = { cardX, 140, 320, 430 };
@@ -2204,12 +2263,12 @@ void DrawTelaSaveSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
     }
 
     // Botão Voltar
-    UIButton btnVoltar = { { 490, 600, 300, 50 }, "BACK", false, false };
+    UIButton btnVoltar = { { 490, 640, 300, 50 }, "BACK", false, false };
     btnVoltar.hover = CheckCollisionPointRec(mouse, btnVoltar.bounds);
     DrawButton(btnVoltar, font, true);
 }
 
-void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3])
+void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT])
 {
     // Fundo escuro translúcido para revelar a run desfocada/limpa no fundo
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade((Color){ 10, 8, 22, 255 }, 0.75f));
@@ -2219,15 +2278,38 @@ void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
     Vector2 titleSize = MeasureTextEx(font, titulo, 42.0f, 1.5f);
     DrawTextEx(font, titulo, (Vector2){ (SCREEN_WIDTH / 2.0f) - (titleSize.x / 2.0f), 40.0f }, 42.0f, 1.5f, SKYBLUE);
     
-    const char *sub = "Choose a save to continue your journey";
+    const char *sub = "Choose autosave or one of your manual slots";
     Vector2 subSize = MeasureTextEx(font, sub, 18.0f, 1.0f);
     DrawTextEx(font, sub, (Vector2){ (SCREEN_WIDTH / 2.0f) - (subSize.x / 2.0f), 90.0f }, 18.0f, 1.0f, GRAY);
 
-    // 3 Slots Cards
-    for (int i = 0; i < 3; i++)
+    int autoIdx = AUTO_SAVE_SLOT - 1;
+    SaveSlotMeta autoMeta = game->slotsMeta[autoIdx];
+    Rectangle autoBounds = { 80, 118, 1120, 112 };
+    bool autoHover = CheckCollisionPointRec(mouse, autoBounds);
+    Color autoBorder = (autoHover && autoMeta.exists) ? THEME_COLOR_MAIN : GOLD;
+    DrawRectangleRounded(autoBounds, 0.05f, 6, Fade((Color){ 20, 18, 32, 255 }, autoMeta.exists ? 0.88f : 0.45f));
+    DrawRectangleRoundedLines(autoBounds, 0.05f, 6, Fade(autoBorder, autoMeta.exists ? 0.95f : 0.45f));
+    DrawTextEx(font, "SAVE AUTOMATICO", (Vector2){ autoBounds.x + 24, autoBounds.y + 16 }, 24.0f, 1.0f, GOLD);
+    DrawTextEx(font, "Criado automaticamente durante o gameplay. Nao ocupa slots manuais.",
+               (Vector2){ autoBounds.x + 24, autoBounds.y + 48 }, 16.0f, 1.0f, Fade(WHITE, 0.72f));
+    if (autoMeta.exists)
+    {
+        DrawTextEx(font, TextFormat("Hero: %s   Lvl %d   Wave %d/5   Score %d",
+                   autoMeta.name, autoMeta.level, autoMeta.wave, autoMeta.score),
+                   (Vector2){ autoBounds.x + 24, autoBounds.y + 76 }, 16.0f, 1.0f, WHITE);
+        DrawTextEx(font, TextFormat("Date: %s", autoMeta.date),
+                   (Vector2){ autoBounds.x + 790, autoBounds.y + 76 }, 14.0f, 1.0f, GRAY);
+    }
+    else
+    {
+        DrawTextEx(font, "Nenhum autosave encontrado ainda.", (Vector2){ autoBounds.x + 24, autoBounds.y + 76 }, 16.0f, 1.0f, DARKGRAY);
+    }
+
+    // 3 Slots Cards manuais
+    for (int i = 0; i < MANUAL_SAVE_SLOTS; i++)
     {
         float cardX = 80.0f + (float)i * 400.0f;
-        Rectangle cardBounds = { cardX, 140, 320, 430 };
+        Rectangle cardBounds = { cardX, 260, 320, 300 };
 
         bool hover = CheckCollisionPointRec(mouse, cardBounds);
         SaveSlotMeta meta = game->slotsMeta[i];
@@ -2245,7 +2327,7 @@ void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
         DrawRectangleRoundedLines(cardBounds, 0.05f, 6, borderCol);
 
         // Screenshot Box (16:9 ratio, e.g. 280 x 158)
-        Rectangle imgBounds = { cardX + 20, 160, 280, 158 };
+        Rectangle imgBounds = { cardX + 20, 278, 280, 118 };
         DrawRectangleRec(imgBounds, BLACK);
 
         if (slotTexturesLoaded[i])
@@ -2266,23 +2348,23 @@ void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
         // Rótulo do Slot
         if (i == 0)
         {
-            DrawTextEx(font, "SLOT 1 (DEFAULT)", (Vector2){ cardX + 20, 335 }, 22.0f, 1.0f, GOLD);
+            DrawTextEx(font, "SLOT 1 (DEFAULT)", (Vector2){ cardX + 20, 410 }, 20.0f, 1.0f, GOLD);
         }
         else
         {
-            DrawTextEx(font, TextFormat("SLOT %d", i + 1), (Vector2){ cardX + 20, 335 }, 22.0f, 1.0f, GOLD);
+            DrawTextEx(font, TextFormat("SLOT %d", i + 1), (Vector2){ cardX + 20, 410 }, 20.0f, 1.0f, GOLD);
         }
 
         if (meta.exists)
         {
-            DrawTextEx(font, TextFormat("Hero: %s", meta.name), (Vector2){ cardX + 20, 365 }, 18.0f, 1.0f, WHITE);
-            DrawTextEx(font, TextFormat("Level: Lvl %d", meta.level), (Vector2){ cardX + 20, 390 }, 18.0f, 1.0f, WHITE);
-            DrawTextEx(font, TextFormat("Wave: %d / 5", meta.wave), (Vector2){ cardX + 20, 415 }, 18.0f, 1.0f, WHITE);
-            DrawTextEx(font, TextFormat("Score: %d", meta.score), (Vector2){ cardX + 20, 440 }, 18.0f, 1.0f, WHITE);
-            DrawTextEx(font, TextFormat("Date: %s", meta.date), (Vector2){ cardX + 20, 470 }, 14.0f, 1.0f, GRAY);
+            DrawTextEx(font, TextFormat("Hero: %s", meta.name), (Vector2){ cardX + 20, 438 }, 16.0f, 1.0f, WHITE);
+            DrawTextEx(font, TextFormat("Level: Lvl %d", meta.level), (Vector2){ cardX + 20, 460 }, 16.0f, 1.0f, WHITE);
+            DrawTextEx(font, TextFormat("Wave: %d / 5", meta.wave), (Vector2){ cardX + 20, 482 }, 16.0f, 1.0f, WHITE);
+            DrawTextEx(font, TextFormat("Score: %d", meta.score), (Vector2){ cardX + 20, 504 }, 16.0f, 1.0f, WHITE);
+            DrawTextEx(font, TextFormat("Date: %s", meta.date), (Vector2){ cardX + 20, 526 }, 13.0f, 1.0f, GRAY);
 
             // Botão Apagar Save
-            Rectangle deleteBounds = { cardX + 20, 495, 280, 35 };
+            Rectangle deleteBounds = { cardX + 20, 562, 280, 30 };
             bool deleteHover = CheckCollisionPointRec(mouse, deleteBounds);
             Color delBg = deleteHover ? RED : Fade(RED, 0.3f);
             DrawRectangleRounded(deleteBounds, 0.25f, 6, delBg);
@@ -2295,17 +2377,17 @@ void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
             // Hover do card como um todo
             if (hover && !deleteHover)
             {
-                DrawTextEx(font, "CLICK TO LOAD", (Vector2){ cardX + 20, 545 }, 14.0f, 1.0f, SKYBLUE);
+                DrawTextEx(font, "CLICK TO LOAD", (Vector2){ cardX + 20, 598 }, 13.0f, 1.0f, SKYBLUE);
             }
         }
         else
         {
-            DrawTextEx(font, "EMPTY SLOT", (Vector2){ cardX + 20, 365 }, 20.0f, 1.0f, DARKGRAY);
+            DrawTextEx(font, "EMPTY SLOT", (Vector2){ cardX + 20, 438 }, 18.0f, 1.0f, DARKGRAY);
         }
     }
 
     // Botão Voltar
-    UIButton btnVoltar = { { 490, 600, 300, 50 }, "BACK", false, false };
+    UIButton btnVoltar = { { 490, 650, 300, 50 }, "BACK", false, false };
     btnVoltar.hover = CheckCollisionPointRec(mouse, btnVoltar.bounds);
     DrawButton(btnVoltar, font, true);
 }
@@ -2317,30 +2399,36 @@ void DrawTelaLoadSelect(GameState *game, Font font, Vector2 mouse, Texture2D slo
 
 // 10. TELA: SETTINGS
 // ============================================================================
-UIButton settingsBtnVoltar = { { 490, 600, 300, 50 }, "BACK", false, false };
+UIButton settingsBtnVoltar = { { 490, 600, 300, 50 }, "VOLTAR", false, false };
 
 static void DrawSettingsVolumeSlider(Font font, const char *label, Rectangle track, float value)
 {
     value = Clamp(value, 0.0f, 1.0f);
-    DrawTextEx(font, label, (Vector2){ 380.0f, track.y - 5.0f }, 20.0f, 1.0f, WHITE);
+    Vector2 labelSz = MeasureTextEx(font, label, 20.0f, 1.0f);
+    DrawTextEx(font, label, (Vector2){ track.x - labelSz.x - 28.0f, track.y - 6.0f }, 20.0f, 1.0f, WHITE);
 
     Rectangle hit = { track.x - 14.0f, track.y - 14.0f, track.width + 28.0f, track.height + 28.0f };
     bool hover = CheckCollisionPointRec(g_virtualMouse, hit);
-    DrawRectangleRounded(track, 0.8f, 6, Fade(BLACK, 0.6f));
+    DrawRectangleRounded((Rectangle){ track.x - 2, track.y - 2, track.width + 4, track.height + 4 },
+                         0.8f, 6, Fade((Color){ 2, 8, 12, 255 }, 0.72f));
+    DrawRectangleRounded(track, 0.8f, 6, Fade(BLACK, 0.62f));
     DrawRectangleRounded((Rectangle){ track.x, track.y, track.width * value, track.height },
                          0.8f, 6, THEME_COLOR_MAIN);
     DrawRectangleRoundedLines(track, 0.8f, 6,
                               Fade(hover ? THEME_COLOR_MAIN : THEME_COLOR_BORDER, 0.9f));
 
-    float radius = 11.0f;
+    float radius = 15.0f;
     float knobX = track.x + track.width * value;
     if (knobX < track.x + radius) knobX = track.x + radius;
     if (knobX > track.x + track.width - radius) knobX = track.x + track.width - radius;
     float knobY = track.y + track.height * 0.5f;
+    float t = (float)GetTime();
+    Color virusCol = hover ? (Color){ 120, 255, 210, 255 } : (Color){ 80, 220, 190, 255 };
     DrawCircleV((Vector2){ knobX, knobY }, radius + 2.0f,
-                Fade(THEME_COLOR_MAIN, 0.3f + (hover ? 0.2f : 0.0f)));
-    DrawCircleV((Vector2){ knobX, knobY }, radius,
-                hover ? THEME_COLOR_MAIN : (Color){ 220, 235, 245, 255 });
+                Fade(THEME_COLOR_MAIN, 0.24f + (hover ? 0.18f : 0.0f)));
+    DrawMenuVirus((Vector2){ knobX, knobY }, radius * (0.82f + 0.08f * sinf(t * 4.0f)),
+                  t * 90.0f, virusCol);
+    DrawCircleV((Vector2){ knobX, knobY }, 4.0f, Fade(WHITE, 0.88f));
 
     DrawTextEx(font, TextFormat("%d%%", (int)(value * 100.0f + 0.5f)),
                (Vector2){ track.x + track.width + 16.0f, track.y - 5.0f },
@@ -2351,63 +2439,19 @@ void DrawTelaSettings(GameState *game, Font font)
 {
     DrawThemedBackground(SCREEN_SETTINGS, (float)GetTime(), game->screenAnim / 0.4f);
 
-    DrawTextEx(font, "SETTINGS", (Vector2){ 540, 60 }, 42.0f, 1.5f, SKYBLUE);
+    const char *title = "CONFIGURACOES";
+    Vector2 titleSz = MeasureTextEx(font, title, 42.0f, 1.5f);
+    DrawTextEx(font, title, (Vector2){ SCREEN_WIDTH / 2.0f - titleSz.x / 2.0f, 60 }, 42.0f, 1.5f, SKYBLUE);
 
-    DrawSciFiBox((Rectangle){ 340, 150, 600, 400 }, THEME_COLOR_MAIN);
+    DrawSciFiBox((Rectangle){ 320, 178, 640, 290 }, THEME_COLOR_MAIN);
 
-    DrawTextEx(font, "AUDIO", (Vector2){ 380, 170 }, 28.0f, 1.0f, YELLOW);
-    DrawLine(380, 205, 900, 205, Fade(YELLOW, 0.5f));
+    DrawTextEx(font, "AUDIO", (Vector2){ 395, 210 }, 28.0f, 1.0f, YELLOW);
+    DrawLine(395, 248, 885, 248, Fade(YELLOW, 0.5f));
 
     DrawSettingsVolumeSlider(font, "MUSICA", SettingsMusicVolumeTrack(), game->musicVolume);
     DrawSettingsVolumeSlider(font, "EFEITOS SONOROS", SettingsSfxVolumeTrack(), game->sfxVolume);
 
-    // ------------------------------------------------------------------------
-    // SELETORES DE SKIN (personagem e arma)
-    // ------------------------------------------------------------------------
-    DrawTextEx(font, "APARENCIA", (Vector2){ 380, 325 }, 28.0f, 1.0f, YELLOW);
-    DrawLine(380, 360, 900, 360, Fade(YELLOW, 0.5f));
-
-    const char *rowLabels[2] = { "SKIN DO ANTICORPO", "SKIN DA ARMA" };
-    for (int row = 0; row < 2; row++)
-    {
-        float y = 390.0f + row * 65.0f;
-        DrawTextEx(font, rowLabels[row], (Vector2){ 380, y + 8 }, 20.0f, 1.0f, WHITE);
-
-        // Setas < >
-        Rectangle btnPrev = { 600, y, 40, 40 };
-        Rectangle btnNext = { 860, y, 40, 40 };
-        bool hovPrev = CheckCollisionPointRec(g_virtualMouse, btnPrev);
-        bool hovNext = CheckCollisionPointRec(g_virtualMouse, btnNext);
-        DrawRectangleRounded(btnPrev, 0.3f, 6, Fade(THEME_COLOR_BORDER, hovPrev ? 0.9f : 0.5f));
-        DrawRectangleRounded(btnNext, 0.3f, 6, Fade(THEME_COLOR_BORDER, hovNext ? 0.9f : 0.5f));
-        DrawTextEx(font, "<", (Vector2){ btnPrev.x + 14, btnPrev.y + 8 }, 24.0f, 1.0f, hovPrev ? THEME_COLOR_MAIN : WHITE);
-        DrawTextEx(font, ">", (Vector2){ btnNext.x + 14, btnNext.y + 8 }, 24.0f, 1.0f, hovNext ? THEME_COLOR_MAIN : WHITE);
-
-        // Nome da skin atual + amostra de cor
-        const char *skinName;
-        Color swatch;
-        if (row == 0)
-        {
-            skinName = PlayerSkinName(game->player.skinId);
-            swatch = (game->player.skinId == 1) ? (Color){ 225, 55, 60, 255 }
-                   : (game->player.skinId == 2) ? (Color){ 130, 220, 40, 255 }
-                                                : (Color){ 235, 240, 250, 255 };
-        }
-        else
-        {
-            skinName = WeaponSkinName(game->player.weaponSkinId);
-            swatch = WeaponSkinPrimary(game->player.weaponSkinId);
-        }
-
-        Rectangle nameBox = { 650, y, 200, 40 };
-        DrawRectangleRounded(nameBox, 0.2f, 6, Fade(BLACK, 0.55f));
-        DrawRectangleRoundedLines(nameBox, 0.2f, 6, THEME_COLOR_BORDER);
-        DrawCircle((int)(nameBox.x + 22), (int)(y + 20), 10.0f, swatch);
-        Vector2 nameSz = MeasureTextEx(font, skinName, 18.0f, 1.0f);
-        DrawTextEx(font, skinName, (Vector2){ nameBox.x + 110.0f - nameSz.x / 2.0f + 10.0f, y + 11 }, 18.0f, 1.0f, WHITE);
-    }
-
-    DrawTextEx(font, "Audio e skins sao salvos automaticamente.", (Vector2){ 380, 520 }, 14.0f, 1.0f, GRAY);
+    DrawTextEx(font, "Audio salvo automaticamente ao voltar.", (Vector2){ 395, 415 }, 14.0f, 1.0f, GRAY);
 
     DrawButton(settingsBtnVoltar, font, true);
 }

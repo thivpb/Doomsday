@@ -10,7 +10,7 @@ void UpdateButtonsPause(GameState *game, Vector2 mouse);
 void UpdateButtonsGameOver(GameState *game, Vector2 mouse);
 void UpdateButtonsVitoria(GameState *game, Vector2 mouse);
 void UpdateButtonsSettings(GameState *game, Vector2 mouse, GameScreen backScreen);
-int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3]);
-int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[3], bool slotTexturesLoaded[3]);
+int UpdateButtonsSaveSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT]);
+int UpdateButtonsLoadSelect(GameState *game, Vector2 mouse, Texture2D slotTextures[SAVE_SLOT_COUNT], bool slotTexturesLoaded[SAVE_SLOT_COUNT]);
 
 #endif

@@ -47,6 +47,7 @@ typedef struct Player
     float distancingTimer; // Distanciamento Social (Mundo 1): aura que repele inimigos
     float regenTimer;      // Citocina de Estabilização: regeneração de vida ao longo do tempo
     float regenAccum;      // acumulador fracionário da regeneração (hp é int)
+    float supremeTimer;    // Orbe Supremo: velocidade/dano/escudo reforçados por pouco tempo
     
     // Combate
     float attackCooldown;  // Tempo até o próximo ataque

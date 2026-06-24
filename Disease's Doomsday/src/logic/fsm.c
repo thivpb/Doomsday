@@ -8,8 +8,8 @@
 extern Vector2 g_virtualMouse;
 extern GameScreen loadSelectBackScreen;
 extern GameScreen settingsBackScreen;
-extern Texture2D slotTextures[3];
-extern bool slotTexturesLoaded[3];
+extern Texture2D slotTextures[SAVE_SLOT_COUNT];
+extern bool slotTexturesLoaded[SAVE_SLOT_COUNT];
 extern Image screenshotTemp;
 extern bool hasScreenshotTemp;
 
@@ -58,6 +58,14 @@ void UpdateStateMachine(GameState *game)
 
         case SCREEN_UPGRADE:
             UpdateTelaUpgrade(game, g_virtualMouse);
+            break;
+
+        case SCREEN_STAGE_COMPLETE:
+            UpdateTelaStageComplete(game, g_virtualMouse);
+            break;
+
+        case SCREEN_STAGE_PROLOGUE:
+            UpdateTelaStagePrologue(game, g_virtualMouse);
             break;
 
         case SCREEN_CONTROLS:
@@ -125,7 +133,8 @@ void UpdateStateMachine(GameState *game)
                     if (hasScreenshotTemp)
                     {
                         char path[64];
-                        sprintf(path, "Saves/screenshot_slot_%d.png", slotSelected);
+                        if (slotSelected == AUTO_SAVE_SLOT) snprintf(path, sizeof(path), "Saves/auto_save.png");
+                        else snprintf(path, sizeof(path), "Saves/screenshot_slot_%d.png", slotSelected);
                         ExportImage(screenshotTemp, path);
                     }
                     game->currentScreen = SCREEN_GAMEPLAY;
@@ -205,6 +214,14 @@ void DrawStateMachine(GameState *game)
         case SCREEN_UPGRADE:
             DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.8f));
             DrawTelaUpgrade(game, g_gameFont);
+            break;
+
+        case SCREEN_STAGE_COMPLETE:
+            DrawTelaStageComplete(game, g_gameFont);
+            break;
+
+        case SCREEN_STAGE_PROLOGUE:
+            DrawTelaStagePrologue(game, g_gameFont);
             break;
 
         case SCREEN_CONTROLS:

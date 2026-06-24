@@ -18,17 +18,27 @@
 
 static inline bool IsStraightRifle(ProjectileType t)
 {
-    return t == PROJ_PLAYER_PHAGE || t == PROJ_PLAYER_VACCINE || t == PROJ_PLAYER_RIFLE;
+    return t == PROJ_PLAYER_PHAGE || t == PROJ_PLAYER_VACCINE ||
+           t == PROJ_PLAYER_RIFLE || t == PROJ_PLAYER_RIFLE_EVOLVED;
 }
 
-void SpawnProjectile(GameState *game, Vector2 pos, Vector2 target, ProjectileType type, int dmg)
+static int ProjectileSourceSlot(ProjectileType t)
+{
+    if (t == PROJ_PLAYER_PHAGE || t == PROJ_PLAYER_VACCINE ||
+        t == PROJ_PLAYER_RIFLE || t == PROJ_PLAYER_RIFLE_EVOLVED) return 2;
+    if (t == PROJ_PLAYER_GRENADE) return 3;
+    if (t == PROJ_PLAYER_BFG || t == PROJ_PLAYER_BFG_EVOLVED) return 4;
+    return 0;
+}
+
+static void SpawnProjectileInternal(GameState *game, Vector2 pos, Vector2 dir, ProjectileType type, int dmg, int splitLevel)
 {
     for (int i = 0; i < MAX_PROJECTILES; i++)
     {
         if (game->projectiles[i].active) continue;
         Projectile *p = &game->projectiles[i];
 
-        Vector2 dir = Vector2Normalize(Vector2Subtract(target, pos));
+        dir = Vector2Normalize(dir);
         if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ 1.0f, 0.0f };
 
         float speed = 300.0f, maxRange = 0.0f, life = 8.0f;
@@ -41,9 +51,11 @@ void SpawnProjectile(GameState *game, Vector2 pos, Vector2 target, ProjectileTyp
             case PROJ_BOSS_BULLET:    speed = 300.0f; break;
             case PROJ_PLAYER_RIFLE:   // rifles retos do jogador: alcance limitado
             case PROJ_PLAYER_PHAGE:
-            case PROJ_PLAYER_VACCINE: speed = PHAGE_SPEED; maxRange = PHAGE_MAX_RANGE; life = PHAGE_LIFE_CAP; break;
+            case PROJ_PLAYER_VACCINE:
+            case PROJ_PLAYER_RIFLE_EVOLVED: speed = PHAGE_SPEED; maxRange = PHAGE_MAX_RANGE; life = PHAGE_LIFE_CAP; break;
             case PROJ_PLAYER_GRENADE: speed = 350.0f; life = 1.2f; break; // explode no fim do lifetime
             case PROJ_PLAYER_BFG:     speed = 280.0f; life = 3.0f; break; // perfurante, vida própria
+            case PROJ_PLAYER_BFG_EVOLVED: speed = 300.0f; life = 3.2f; maxRange = 960.0f; break;
             default: break;
         }
 
@@ -56,11 +68,24 @@ void SpawnProjectile(GameState *game, Vector2 pos, Vector2 target, ProjectileTyp
         p->damage = dmg;
         p->isPlayerProjectile = (type == PROJ_PLAYER_RIFLE || type == PROJ_PLAYER_GRENADE ||
                                  type == PROJ_PLAYER_BFG || type == PROJ_PLAYER_PHAGE ||
-                                 type == PROJ_PLAYER_VACCINE);
+                                 type == PROJ_PLAYER_VACCINE || type == PROJ_PLAYER_RIFLE_EVOLVED ||
+                                 type == PROJ_PLAYER_BFG_EVOLVED);
         p->lifeTime = life;
+        p->splitLevel = splitLevel;
+        p->sourceWeaponSlot = ProjectileSourceSlot(type);
         p->hitbox = (Rectangle){ pos.x - 10, pos.y - 10, 20, 20 };
         break;
     }
+}
+
+void SpawnProjectile(GameState *game, Vector2 pos, Vector2 target, ProjectileType type, int dmg)
+{
+    SpawnProjectileInternal(game, pos, Vector2Subtract(target, pos), type, dmg, 0);
+}
+
+void SpawnProjectileWithVelocity(GameState *game, Vector2 pos, Vector2 velocity, ProjectileType type, int dmg, int splitLevel)
+{
+    SpawnProjectileInternal(game, pos, velocity, type, dmg, splitLevel);
 }
 
 bool Projectile_Advance(Projectile *p, float dt)

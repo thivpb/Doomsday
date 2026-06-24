@@ -130,7 +130,7 @@ void DrawTelaArsenal(GameState *game, Font font)
     DrawThemedBackground(SCREEN_ARSENAL, time, game->screenAnim / 0.4f);
 
     DrawTitleText(font, "ARSENAL DO ANTICORPO", SCREEN_WIDTH / 2.0f, 30.0f, 40.0f, THEME_COLOR_TEXT);
-    const char *sub = "Selecione uma arma (roda do mouse / setas rolam a lista). Em jogo, use 1 a 4; a tecla 1 alterna a Lamina apos 30 abates.";
+    const char *sub = "Selecione uma arma. Cada slot evolui com abates proprios; em jogo, a tecla do slot alterna a evolucao.";
     Vector2 sSz = MeasureTextEx(font, sub, 16.0f, 1.0f);
     DrawTextEx(font, sub, (Vector2){ SCREEN_WIDTH / 2.0f - sSz.x / 2.0f, 84.0f }, 16.0f, 1.0f, Fade(WHITE, 0.8f));
 
@@ -139,7 +139,7 @@ void DrawTelaArsenal(GameState *game, Font font)
 
     // ---- COLUNA ESQUERDA: seletores das armas (ROLÁVEL, com mini-preview real) ----
     Rectangle arsView = { ARS_VIEW_X, ARS_VIEW_Y, ARS_VIEW_W, ARS_VIEW_H };
-    BeginScissorMode((int)arsView.x, (int)arsView.y, (int)arsView.width, (int)arsView.height);
+    BeginVirtualScissorMode(arsView);
     for (int s = 0; s < WEAPON_COUNT; s++)
     {
         WeaponInfo wi = GetWeaponInfo(s + 1);
@@ -171,14 +171,14 @@ void DrawTelaArsenal(GameState *game, Font font)
         // nome ajustado para nunca estourar o card
         Rectangle nameArea = { drawc.x + 86, drawc.y + 34, drawc.width - 96, 30 };
         DrawTextFitCentered(font, wi.name, nameArea, 20.0f, unlocked ? WHITE : Fade(GRAY, 0.85f), true);
-        // Status: DISPONIVEL, ou requisito (abates p/ a Lâmina; nível p/ as demais).
+        // Status: DISPONIVEL, ou requisito por abates/nivel.
         const char *status = unlocked ? "DISPONIVEL"
-                           : (s + 1 == WEAPON_BIOBLADE) ? TextFormat("%d ABATES", BIOBLADE_UNLOCK_KILLS)
+                           : WeaponIsEvolution(s + 1) ? TextFormat("%d ABATES S%d", WEAPON_EVOLVE_KILLS, WeaponSlotForId(s + 1))
                            : TextFormat("NIVEL %d", wi.unlockLevel);
         DrawTextEx(font, status, (Vector2){ drawc.x + 86, drawc.y + 66 }, 14.0f, 1.0f,
                    unlocked ? (Color){ 120, 220, 140, 255 } : (Color){ 230, 120, 120, 255 });
     }
-    EndScissorMode();
+    EndVirtualScissorMode();
 
     // Barra de rolagem (apenas quando há overflow) à direita do viewport.
     float maxScroll = ArsenalMaxScroll();
@@ -233,12 +233,13 @@ void DrawTelaArsenal(GameState *game, Font font)
     }
     else ty += 4;
 
-    // Requisito (abates p/ a Lâmina Bioelétrica; nível p/ as demais) / status claro.
+    // Requisito (abates p/ evoluções; nível p/ primordiais) / status claro.
     Rectangle foot = { tx, ty, tw, 30 };
-    bool isBlade = (g_arsenalSel + 1 == WEAPON_BIOBLADE);
+    bool isEvolution = WeaponIsEvolution(g_arsenalSel + 1);
+    int evoSlot = WeaponSlotForId(g_arsenalSel + 1);
     if (unlocked)
     {
-        const char *okTxt = isBlade ? TextFormat("DESBLOQUEADA (%d abates)", BIOBLADE_UNLOCK_KILLS)
+        const char *okTxt = isEvolution ? TextFormat("DESBLOQUEADA (%d abates no slot %d)", WEAPON_EVOLVE_KILLS, evoSlot)
                           : (wi.unlockLevel <= 1) ? "DISPONIVEL DESDE O INICIO"
                           : TextFormat("DESBLOQUEADA (Nivel %d)", wi.unlockLevel);
         DrawTextEx(font, okTxt, (Vector2){ foot.x, foot.y }, 16.0f, 1.0f, (Color){ 90, 220, 130, 255 });
@@ -246,14 +247,14 @@ void DrawTelaArsenal(GameState *game, Font font)
     else
     {
         DrawRectangleRounded(foot, 0.4f, 6, Fade(RED, 0.14f));
-        const char *lockTxt = isBlade
-            ? TextFormat("BLOQUEADA - %d/%d abates", game->totalEnemiesKilled, BIOBLADE_UNLOCK_KILLS)
+        const char *lockTxt = isEvolution
+            ? TextFormat("BLOQUEADA - %d/%d abates no slot %d", WeaponKillCountForSlot(game, evoSlot), WEAPON_EVOLVE_KILLS, evoSlot)
             : TextFormat("BLOQUEADA - desbloqueia no Nivel %d", wi.unlockLevel);
         DrawTextFitCentered(font, lockTxt, foot, 16.0f, (Color){ 235, 130, 130, 255 }, true);
     }
 
     DrawButton(arsenalBack, font, true);
-    DrawTextEx(font, "Use 1-4 no jogo; a Lamina divide o slot 1  |  ESC para voltar",
+    DrawTextEx(font, "Use 1-4 no jogo; evolucoes dividem o mesmo slot  |  ESC para voltar",
                (Vector2){ 380, SCREEN_HEIGHT - 28 }, 14.0f, 1.0f, DARKGRAY);
 }
 

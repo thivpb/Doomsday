@@ -149,7 +149,104 @@ void DrawHeldWeapon(int weapon, Vector2 handPos, float size, float rotationDeg, 
     rlRotatef(rotationDeg, 0.0f, 0.0f, 1.0f);
     float s = size;
 
-    if (weapon == 2)
+    if (weapon == 6)
+    {
+        // ---- RIFLE VETORIAL REPLICANTE: receptor duplo com "eco" de replicação,
+        //      núcleo hexagonal energizado e bocais gêmeos ligados por arco ----
+        Color body   = (Color){ 68, 44, 34, 255 };
+        Color bodyDk = (Color){ 24, 18, 20, 255 };
+        Color glow   = (Color){ 255, 170, 90, 255 };
+        Color hot    = (Color){ 255, 245, 220, 255 };
+        // "Eco" fantasma do receptor (telegrafa a duplicação): cópia deslocada atrás.
+        DrawRectangleRounded((Rectangle){ -s*0.32f, -s*0.89f, s*0.88f, s*0.72f }, 0.22f, 8, Fade(glow, 0.16f));
+        DrawRectangleRoundedLines((Rectangle){ -s*0.32f, -s*0.89f, s*0.88f, s*0.72f }, 0.22f, 8, Fade(secondary, 0.28f));
+        DrawRectangleRounded((Rectangle){ -s*0.24f, -s*0.08f, s*0.48f, s*0.70f }, 0.38f, 6, bodyDk);
+        DrawRectangleRounded((Rectangle){ -s*0.44f, -s*0.96f, s*0.88f, s*0.72f }, 0.22f, 8, body);
+        DrawRectangleRoundedLines((Rectangle){ -s*0.44f, -s*0.96f, s*0.88f, s*0.72f }, 0.22f, 8, glow);
+        // Núcleo hexagonal com halo de energia e centro branco-quente.
+        DrawCircleGradient(0, (int)(-s*0.60f), s*0.44f, Fade(primary, 0.5f), BLANK);
+        DrawPoly((Vector2){ 0, -s*0.60f }, 6, s*0.34f, 30.0f, primary);
+        DrawPolyLinesEx((Vector2){ 0, -s*0.60f }, 6, s*0.38f, 30.0f, s*0.045f, secondary);
+        DrawCircleV((Vector2){ 0, -s*0.60f }, s*0.12f, hot);
+        // Canos gêmeos + condutores de energia.
+        DrawRectangleRounded((Rectangle){ -s*0.40f, -s*1.72f, s*0.22f, s*0.86f }, 0.20f, 6, bodyDk);
+        DrawRectangleRounded((Rectangle){  s*0.18f, -s*1.72f, s*0.22f, s*0.86f }, 0.20f, 6, bodyDk);
+        DrawLineEx((Vector2){ -s*0.29f, -s*1.66f }, (Vector2){ -s*0.29f, -s*0.98f }, s*0.03f, Fade(secondary, 0.7f));
+        DrawLineEx((Vector2){  s*0.29f, -s*1.66f }, (Vector2){  s*0.29f, -s*0.98f }, s*0.03f, Fade(secondary, 0.7f));
+        // Bocais com brilho, centro branco-quente e arco de ligação (a "duplicação").
+        DrawLineEx((Vector2){ -s*0.29f, -s*1.78f }, (Vector2){ 0, -s*1.94f }, s*0.03f, Fade(secondary, 0.9f));
+        DrawLineEx((Vector2){  s*0.29f, -s*1.78f }, (Vector2){ 0, -s*1.94f }, s*0.03f, Fade(secondary, 0.9f));
+        DrawCircleV((Vector2){ -s*0.29f, -s*1.78f }, s*0.15f, glow);
+        DrawCircleV((Vector2){  s*0.29f, -s*1.78f }, s*0.15f, glow);
+        DrawCircleV((Vector2){ -s*0.29f, -s*1.78f }, s*0.07f, hot);
+        DrawCircleV((Vector2){  s*0.29f, -s*1.78f }, s*0.07f, hot);
+        DrawLineEx((Vector2){ -s*0.29f, -s*1.78f }, (Vector2){ 0, -s*1.18f }, s*0.04f, Fade(glow, 0.8f));
+        DrawLineEx((Vector2){  s*0.29f, -s*1.78f }, (Vector2){ 0, -s*1.18f }, s*0.04f, Fade(glow, 0.8f));
+        DrawRectangleRounded((Rectangle){ s*0.34f, -s*0.36f, s*0.22f, s*0.58f }, 0.28f, 6, bodyDk);
+    }
+    else if (weapon == 7)
+    {
+        // ---- LANÇA-MINAS DE RNA: morteiro com cápsula de RNA (dupla hélice) ----
+        Color body   = (Color){ 58, 38, 76, 255 };
+        Color bodyDk = (Color){ 20, 16, 28, 255 };
+        Color glow   = (Color){ 210, 120, 255, 255 };
+        Color hot    = (Color){ 255, 240, 255, 255 };
+        DrawRectangleRounded((Rectangle){ -s*0.20f, -s*0.02f, s*0.40f, s*0.66f }, 0.45f, 6, bodyDk);
+        DrawRectangleRounded((Rectangle){ -s*0.48f, -s*1.00f, s*0.96f, s*0.82f }, 0.30f, 8, body);
+        DrawRectangleRoundedLines((Rectangle){ -s*0.48f, -s*1.00f, s*0.96f, s*0.82f }, 0.30f, 8, glow);
+        DrawCircleGradient(0, (int)(-s*1.28f), s*0.58f, Fade(glow, 0.70f), BLANK);
+        DrawCircleV((Vector2){ 0, -s*1.28f }, s*0.34f, bodyDk);
+        DrawCircleV((Vector2){ 0, -s*1.28f }, s*0.22f, primary);
+        // Fita de RNA (dupla hélice) carregada na cápsula.
+        for (int i = 0; i < 7; i++)
+        {
+            float t0 = i / 6.0f;
+            float yy = -s*(1.08f + t0*0.40f);
+            float xx = cosf(t0 * PI * 2.4f) * s*0.18f;
+            if (i % 2 == 0) DrawLineEx((Vector2){ xx, yy }, (Vector2){ -xx, yy }, s*0.022f, Fade(secondary, 0.6f));
+            DrawCircleV((Vector2){  xx, yy }, s*0.05f, secondary);
+            DrawCircleV((Vector2){ -xx, yy }, s*0.05f, Fade(hot, 0.9f));
+        }
+        DrawCircleV((Vector2){ 0, -s*1.28f }, s*0.07f, hot);
+        DrawLineEx((Vector2){ -s*0.42f, -s*0.78f }, (Vector2){ s*0.42f, -s*0.42f }, s*0.04f, secondary);
+        DrawLineEx((Vector2){ -s*0.42f, -s*0.42f }, (Vector2){ s*0.42f, -s*0.78f }, s*0.04f, secondary);
+        DrawRectangleRounded((Rectangle){ -s*0.18f, -s*1.78f, s*0.36f, s*0.42f }, 0.45f, 8, bodyDk);
+        DrawCircleV((Vector2){ 0, -s*1.86f }, s*0.22f, glow);
+    }
+    else if (weapon == 8)
+    {
+        // ---- BFG IMUNOLOGICO OMEGA: canhão orbital com três emissores e núcleo dourado ----
+        Color body   = (Color){ 62, 60, 44, 255 };
+        Color bodyDk = (Color){ 22, 24, 24, 255 };
+        Color gold   = (Color){ 255, 230, 90, 255 };
+        DrawRectangleRounded((Rectangle){ -s*0.24f, 0.0f, s*0.48f, s*0.66f }, 0.45f, 6, bodyDk);
+        DrawRectangleRounded((Rectangle){ -s*0.58f, -s*1.05f, s*1.16f, s*1.04f }, 0.26f, 8, body);
+        DrawRectangleRoundedLines((Rectangle){ -s*0.58f, -s*1.05f, s*1.16f, s*1.04f }, 0.26f, 8, gold);
+        Color cyan = (Color){ 120, 255, 220, 255 };
+        DrawCircleGradient(0, (int)(-s*1.18f), s*0.86f, Fade(gold, 0.75f), BLANK);
+        DrawCircleV((Vector2){ 0, -s*1.18f }, s*0.42f, primary);
+        // Anéis concêntricos de carga (Ômega) + centro branco-quente.
+        DrawCircleLines(0, (int)(-s*1.18f), s*0.52f, Fade(cyan, 0.85f));
+        DrawCircleLines(0, (int)(-s*1.18f), s*0.31f, Fade(gold, 0.9f));
+        DrawCircleV((Vector2){ 0, -s*1.18f }, s*0.19f, cyan);
+        DrawCircleV((Vector2){ 0, -s*1.18f }, s*0.08f, WHITE);
+        // Coroa de nós orbitais ao redor do núcleo.
+        for (int n = 0; n < 8; n++)
+        {
+            float a = n * (PI / 4.0f);
+            DrawCircleV((Vector2){ cosf(a)*s*0.46f, -s*1.18f + sinf(a)*s*0.46f }, s*0.035f, Fade(cyan, 0.85f));
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            float x = (i - 1) * s * 0.38f;
+            DrawRectangleRounded((Rectangle){ x - s*0.08f, -s*1.96f, s*0.16f, s*0.88f }, 0.25f, 6, bodyDk);
+            DrawCircleV((Vector2){ x, -s*2.02f }, s*0.12f, gold);
+            DrawCircleV((Vector2){ x, -s*2.02f }, s*0.055f, WHITE);
+            DrawLineEx((Vector2){ x, -s*2.02f }, (Vector2){ 0, -s*1.46f }, s*0.035f, Fade(gold, 0.85f));
+        }
+        DrawRectangleRounded((Rectangle){ s*0.42f, -s*0.26f, s*0.22f, s*0.60f }, 0.3f, 6, bodyDk);
+    }
+    else if (weapon == 2)
     {
         // ---- RIFLE DE VACINA: capsula medica, trilhos de dose e ampola visivel ----
         Color body   = (Color){ 54, 66, 78, 255 };
@@ -226,6 +323,9 @@ static void WeaponVExtent(int weapon, float *up, float *down)
     else if (weapon <= 1)      { *up = 2.95f; *down = 0.70f; } // espada-seringa (agulha longa)
     else if (weapon == 2)      { *up = 1.98f; *down = 0.76f; } // fuzil (muzzle)
     else if (weapon == 3)      { *up = 1.66f; *down = 0.66f; } // granada
+    else if (weapon == 6)      { *up = 2.08f; *down = 0.76f; } // rifle replicante
+    else if (weapon == 7)      { *up = 2.12f; *down = 0.70f; } // lança-minas
+    else if (weapon == 8)      { *up = 2.26f; *down = 0.72f; } // BFG ômega
     else                       { *up = 2.10f; *down = 0.66f; } // BFG (orbe/glow)
 }
 

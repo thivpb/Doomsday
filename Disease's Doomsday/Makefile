@@ -47,6 +47,11 @@ SRCS = \
 # ---------------------------------------------------------------------------
 # Detecção de plataforma e flags de link da Raylib
 # ---------------------------------------------------------------------------
+# Cabeçalhos: prerequisitos do build para que editar um .h FORCE a recompilação.
+# Sem isto, `make` dizia "Nothing to be done" após mudar um header e o jogo rodava
+# com um binário DESATUALIZADO (fonte comum de "minha mudança não fez efeito").
+HEADERS := $(shell find include src Assets -name '*.h' 2>/dev/null)
+
 UNAME_S := $(shell uname -s)
 
 # Tenta usar pkg-config; se existir, ele resolve includes e libs corretamente.
@@ -69,7 +74,7 @@ endif
 .PHONY: all run clean test collision-mask
 all: $(TARGET)
 
-$(TARGET): $(SRCS)
+$(TARGET): $(SRCS) $(HEADERS)
 	$(CC) $(SRCS) -o $(TARGET) $(CFLAGS) $(LIBS)
 	@echo "[OK] Compilacao concluida -> ./$(TARGET)"
 

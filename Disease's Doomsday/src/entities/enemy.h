@@ -83,6 +83,7 @@ typedef struct Enemy
     float poisonTimer;
     float poisonAccum; // Acumulador fracionário do dano de veneno (hp é int)
     float slowTimer;
+    int   lastHitWeaponSlot; // último slot do jogador que causou dano (para evolução)
 
     // ---- IA avançada ----
     float flankSign;   // -1 ou +1: lado preferido para cercar o jogador (melee)

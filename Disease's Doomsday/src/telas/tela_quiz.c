@@ -234,7 +234,8 @@ void DrawTelaQuiz(GameState *game, Font font)
         quizInitialized = true;
     }
 
-    DrawRectangleGradientV(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, THEME_COLOR_BG_DARK, THEME_COLOR_BG_LIGHT);
+    DrawMenuFXBackground((float)GetTime(), game->screenAnim / 0.35f);
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade((Color){ 4, 6, 16, 255 }, 0.42f));
 
     const char *title = "QUIZ DA VIGILANCIA EPIDEMIOLOGICA / SUS";
     Vector2 titleSz = MeasureTextEx(font, title, 30.0f, 1.0f);

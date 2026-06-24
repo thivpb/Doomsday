@@ -49,12 +49,18 @@ Vector2 g_virtualMouse = { 0.0f, 0.0f };
 Font g_gameFont;
 
 // FSM state variables exported to fsm.c
-Texture2D slotTextures[3] = { 0 };
-bool slotTexturesLoaded[3] = { false };
+Texture2D slotTextures[SAVE_SLOT_COUNT] = { 0 };
+bool slotTexturesLoaded[SAVE_SLOT_COUNT] = { false };
 GameScreen loadSelectBackScreen = SCREEN_MENU;
 GameScreen settingsBackScreen = SCREEN_MENU;
 Image screenshotTemp = { 0 };
 bool hasScreenshotTemp = false;
+
+static void ScreenshotPathForSlot(int slot, char *path, int pathSize)
+{
+    if (slot == AUTO_SAVE_SLOT) snprintf(path, pathSize, "Saves/auto_save.png");
+    else snprintf(path, pathSize, "Saves/screenshot_slot_%d.png", slot);
+}
 
 int main(void)
 {
@@ -97,6 +103,7 @@ int main(void)
     bool streamAPlaying = true;
     bool crossfadeActive = false;
     bool musicLoaded = (musicA.frameCount > 0) && (musicB.frameCount > 0);
+    float autoSaveTimer = 0.0f;
 
     if (musicLoaded)
     {
@@ -247,7 +254,7 @@ int main(void)
                 // Limpa texturas dos slots se saiu deles
                 if (previousScreen == SCREEN_SAVE_SELECT || previousScreen == SCREEN_LOAD_SELECT)
                 {
-                    for (int i = 0; i < 3; i++)
+                    for (int i = 0; i < SAVE_SLOT_COUNT; i++)
                     {
                         if (slotTexturesLoaded[i])
                         {
@@ -288,10 +295,10 @@ int main(void)
                 ImageResize(&screenshotTemp, 280, 158);
                 hasScreenshotTemp = true;
 
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < MANUAL_SAVE_SLOTS; i++)
                 {
                     char path[64];
-                    sprintf(path, "Saves/screenshot_slot_%d.png", i + 1);
+                    ScreenshotPathForSlot(i + 1, path, sizeof(path));
                     // Evita double-load: descarrega a textura anterior do slot.
                     if (slotTexturesLoaded[i]) { UnloadTexture(slotTextures[i]); slotTexturesLoaded[i] = false; }
                     if (FileExists(path))
@@ -306,7 +313,7 @@ int main(void)
                 }
 
                 // Carrega os metadados mais recentes dos slots
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < SAVE_SLOT_COUNT; i++)
                 {
                     game.slotsMeta[i] = CarregarMetadadosSlot(i + 1);
                 }
@@ -317,10 +324,10 @@ int main(void)
             {
                 loadSelectBackScreen = previousScreen;
 
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < SAVE_SLOT_COUNT; i++)
                 {
                     char path[64];
-                    sprintf(path, "Saves/screenshot_slot_%d.png", i + 1);
+                    ScreenshotPathForSlot(i + 1, path, sizeof(path));
                     // Evita double-load: descarrega a textura anterior do slot.
                     if (slotTexturesLoaded[i]) { UnloadTexture(slotTextures[i]); slotTexturesLoaded[i] = false; }
                     if (FileExists(path))
@@ -335,7 +342,7 @@ int main(void)
                 }
 
                 // Carrega os metadados mais recentes dos slots
-                for (int i = 0; i < 3; i++)
+                for (int i = 0; i < SAVE_SLOT_COUNT; i++)
                 {
                     game.slotsMeta[i] = CarregarMetadadosSlot(i + 1);
                 }
@@ -378,6 +385,8 @@ int main(void)
                  game.currentScreen == SCREEN_SAVE_SELECT ||
                  game.currentScreen == SCREEN_QUIZ ||
                  game.currentScreen == SCREEN_UPGRADE ||
+                 game.currentScreen == SCREEN_STAGE_COMPLETE ||
+                 game.currentScreen == SCREEN_STAGE_PROLOGUE ||
                  (game.currentScreen == SCREEN_LOAD_SELECT && loadSelectBackScreen == SCREEN_PAUSE))
         {
             // Desenha apenas o mundo 2D (sem o HUD) na textura virtual
@@ -385,6 +394,25 @@ int main(void)
         }
 
         EndWorldRender();
+
+        if (game.currentScreen == SCREEN_GAMEPLAY && !game.inTutorial)
+        {
+            autoSaveTimer += GetFrameTime();
+            if (autoSaveTimer >= 90.0f)
+            {
+                autoSaveTimer = 0.0f;
+                SalvarJogoSlotSilencioso(&game, AUTO_SAVE_SLOT);
+                Image autoImg = LoadImageFromTexture(target.texture);
+                ImageFlipVertical(&autoImg);
+                ImageResize(&autoImg, 280, 158);
+                ExportImage(autoImg, "Saves/auto_save.png");
+                UnloadImage(autoImg);
+            }
+        }
+        else if (game.currentScreen == SCREEN_MENU || game.currentScreen == SCREEN_LOADING)
+        {
+            autoSaveTimer = 0.0f;
+        }
 
         // --------------------------------------------------------------------
         // D. DESENHA A TEXTURA REDIMENSIONADA NA TELA FÍSICA
@@ -447,7 +475,7 @@ int main(void)
     UnloadRenderTexture(target);
     UnloadGameplayResources();   // libera a textura do biossensor (HUD)
     // Limpa quaisquer texturas de slot/screenshot ainda carregadas
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < SAVE_SLOT_COUNT; i++)
         if (slotTexturesLoaded[i]) { UnloadTexture(slotTextures[i]); slotTexturesLoaded[i] = false; }
     if (hasScreenshotTemp) { UnloadImage(screenshotTemp); hasScreenshotTemp = false; }
     UnloadGameAssets();

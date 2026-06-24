@@ -253,14 +253,34 @@ void SavePlayerConfig(GameState *game)
 // ============================================================================
 // AUXILIAR: SPAWN DE POWER-UPS
 // ============================================================================
+static PowerUpType RandomDropType(GameState *game)
+{
+    int roll = GetRandomValue(0, 99);
+    if (roll < 24) return HP_RECOVERY;
+    if (roll < 39) return SPEED_BOOST;
+    if (roll < 54) return SHIELD;
+    if (roll < 68) return ATTACK_BOOST;
+    if (roll < 77) return POWERUP_CYTOKINE;
+    if (roll < 84) return POWERUP_RNA_GRENADE;
+    if (roll < 91) return POWERUP_BARRIER;
+    if (roll < 95) return POWERUP_SUPREME_ORB;
+
+    if (game->currentWorld == WORLD_BACTERIA)
+        return (GetRandomValue(0, 1) == 0) ? POWERUP_MASK : POWERUP_DISTANCING;
+    return (GetRandomValue(0, 1) == 0) ? POWERUP_CYTOKINE : POWERUP_RNA_GRENADE;
+}
+
 void SpawnPowerUpAt(GameState *game, Vector2 position, int forcedType)
 {
     for (int i = 0; i < MAX_POWERUPS; i++)
     {
         if (!game->powerUps[i].active)
         {
-            game->powerUps[i].position = position;
-            game->powerUps[i].type = (forcedType >= 0) ? (PowerUpType)forcedType : (PowerUpType)GetRandomValue(0, BASE_POWERUP_TYPES - 1);
+            Vector2 safePos = game->inTutorial
+                ? position
+                : MapBody_FindSpawnPoint(position, 36.0f);
+            game->powerUps[i].position = safePos;
+            game->powerUps[i].type = (forcedType >= 0) ? (PowerUpType)forcedType : RandomDropType(game);
             game->powerUps[i].active = true;
             game->powerUps[i].pulseTimer = 0.0f;
             break;
@@ -280,13 +300,33 @@ void RegisterEnemyKill(GameState *game, Enemy *enemy)
     game->player.xp += (enemy->tier + 1) * 10;
     game->player.score += (enemy->tier + 1) * 50;
     game->totalEnemiesKilled++;
+    int killSlot = (enemy->lastHitWeaponSlot >= 1 && enemy->lastHitWeaponSlot <= WEAPON_SLOT_COUNT)
+        ? enemy->lastHitWeaponSlot
+        : WeaponSlotForId(game->player.equippedWeapon);
+    if (killSlot >= 1 && killSlot <= WEAPON_SLOT_COUNT)
+    {
+        game->weaponKills[killSlot - 1]++;
+        int evo = WeaponEvolutionForSlot(killSlot);
+        if (!game->weaponEvolutionAnnounced[killSlot - 1] &&
+            game->weaponKills[killSlot - 1] >= WEAPON_EVOLVE_KILLS)
+        {
+            game->weaponEvolutionAnnounced[killSlot - 1] = true;
+            if (evo == WEAPON_BIOBLADE) game->bioBladeAnnounced = true;
+            WeaponInfo we = GetWeaponInfo(evo);
+            ShowBanner(game, TextFormat("NOVA ARMA: %s", we.name),
+                       TextFormat("Slot [%d]: aperte %d para alternar", killSlot, killSlot),
+                       we.color, 3.6f);
+            SpawnParticleExplosion(game, game->player.position, we.color, 22, 60.0f, 200.0f, 4.0f, 0.6f);
+            if (g_assets.sfxPickup.frameCount > 0) PlaySound(g_assets.sfxPickup);
+        }
+    }
     if (game->enemiesRemaining > 0) game->enemiesRemaining--;
 
     // DESBLOQUEIO DA LÂMINA BIOELÉTRICA por abates — feedback único e
     // claro. A arma fica disponível para o resto da campanha (estado deriva de
     // totalEnemiesKilled, que é salvo, então o desbloqueio sobrevive a save/fase).
     if (!game->bioBladeAnnounced && !game->inTutorial &&
-        game->totalEnemiesKilled >= BIOBLADE_UNLOCK_KILLS)
+        WeaponKillCountForSlot(game, 1) >= BIOBLADE_UNLOCK_KILLS)
     {
         game->bioBladeAnnounced = true;
         WeaponInfo wbi = GetWeaponInfo(WEAPON_BIOBLADE);
@@ -301,7 +341,7 @@ void RegisterEnemyKill(GameState *game, Enemy *enemy)
     else if (enemy->tier == TIER_3_BOSS) { game->player.xp += 200; game->player.score += 1500; }
 
     // Chance de drop de power-up (25%) válida para qualquer arma; chefes sempre dropam
-    if (enemy->tier == TIER_MINIBOSS || enemy->tier == TIER_3_BOSS || GetRandomValue(0, 100) < 25)
+    if (enemy->tier == TIER_MINIBOSS || enemy->tier == TIER_3_BOSS || GetRandomValue(0, 100) < 18)
     {
         SpawnPowerUpAt(game, enemy->position, -1);
     }
@@ -311,24 +351,9 @@ void RegisterEnemyKill(GameState *game, Enemy *enemy)
     // Mundo: Máscara e Distanciamento são exclusivos do Mundo 1 (Bactérias);
     // o Desestabilizador de RNA e a Citocina são compartilhados.
     // ------------------------------------------------------------------
-    if (!game->inTutorial && GetRandomValue(0, 99) < 12)
+    if (!game->inTutorial && GetRandomValue(0, 99) < 7)
     {
-        int itemType;
-        if (game->currentWorld == WORLD_BACTERIA)
-        {
-            switch (GetRandomValue(0, 3))
-            {
-                case 0:  itemType = POWERUP_MASK; break;
-                case 1:  itemType = POWERUP_DISTANCING; break;
-                case 2:  itemType = POWERUP_RNA_GRENADE; break;
-                default: itemType = POWERUP_CYTOKINE; break;
-            }
-        }
-        else // WORLD_VIRUS: apenas itens compartilhados
-        {
-            itemType = (GetRandomValue(0, 1) == 0) ? POWERUP_RNA_GRENADE : POWERUP_CYTOKINE;
-        }
-        SpawnPowerUpAt(game, enemy->position, itemType);
+        SpawnPowerUpAt(game, enemy->position, RandomDropType(game));
     }
 }
 
@@ -497,6 +522,7 @@ int ScaleAffinityDamage(int dmg, ProjectileType pt, int enemyType)
 int ApplyPlayerDamageToEnemy(GameState *game, Enemy *enemy, int dmg, bool isBFG)
 {
     bool bossLike = (enemy->tier == TIER_3_BOSS || enemy->tier == TIER_MINIBOSS);
+    if (game->player.supremeTimer > 0.0f) dmg = (int)(dmg * 1.35f);
 
     // Escudo do chefe final (fase 3): invulnerável enquanto houver núcleos.
     if (enemy->tier == TIER_3_BOSS && game->bossShieldActive && CoresAlive(game) > 0)
@@ -580,6 +606,7 @@ static void DetonateRNAGrenade(GameState *game, Vector2 center)
             SpawnParticleExplosion(game, e->position, (Color){ 150, 220, 255, 255 }, 12, 70.0f, 200.0f, 4.0f, 0.5f);
         }
 
+        e->lastHitWeaponSlot = 3;
         int applied = ApplyPlayerDamageToEnemy(game, e, dmg, false);
         if (applied <= 0) continue;
         SpawnDamageText(game, e->position, applied, (Color){ 120, 255, 160, 255 });
@@ -599,6 +626,42 @@ static void DetonateRNAGrenade(GameState *game, Vector2 center)
     }
     // Também danifica os Núcleos de Infecção do escudo do chefe.
     HitInfectionCores(game, center, radius, dmg);
+}
+
+static void DetonateBfgOmega(GameState *game, Vector2 center, int dmg)
+{
+    const float radius = 260.0f;
+    int blastDmg = dmg + 90;
+    SpawnParticleExplosion(game, center, (Color){ 255, 230, 90, 255 }, 34, 120.0f, 360.0f, 6.0f, 0.85f);
+    SpawnParticleExplosion(game, center, (Color){ 120, 255, 220, 255 }, 24, 80.0f, 260.0f, 4.0f, 0.65f);
+    game->screenShake = 0.9f;
+    PlaySound(g_assets.sfxGrenadeExplode);
+
+    int collIndices[MAX_ENEMIES];
+    int collCount = GetEnemiesInRadius(game, center, radius, collIndices);
+    for (int k = 0; k < collCount; k++)
+    {
+        Enemy *e = &game->enemies[collIndices[k]];
+        if (!e->active || e->state == DEATH || e->isTutorialEnemy) continue;
+        e->lastHitWeaponSlot = 4;
+        int applied = ApplyPlayerDamageToEnemy(game, e, blastDmg, false);
+        if (applied <= 0) continue;
+        SpawnDamageText(game, e->position, applied, (Color){ 255, 230, 90, 255 });
+        SpawnParticleExplosion(game, e->position, (Color){ 255, 230, 90, 255 }, 12, 60.0f, 180.0f, 3.0f, 0.45f);
+        if (e->hp <= 0)
+        {
+            e->hp = 0;
+            e->state = DEATH;
+            e->cooldownTimer = 0.5f;
+            if (!game->inTutorial) RegisterEnemyKill(game, e);
+        }
+        else
+        {
+            e->state = HURT;
+            e->cooldownTimer = 0.25f;
+        }
+    }
+    HitInfectionCores(game, center, radius, blastDmg);
 }
 
 static void DetonateBioMine(GameState *game, BioMine *mine)
@@ -634,6 +697,7 @@ static void DetonateBioMine(GameState *game, BioMine *mine)
             }
         }
 
+        e->lastHitWeaponSlot = 3;
         int applied = ApplyPlayerDamageToEnemy(game, e, dmg, false);
         if (applied <= 0) continue;
         e->poisonTimer = 2.0f;
@@ -656,7 +720,7 @@ static void DetonateBioMine(GameState *game, BioMine *mine)
     HitInfectionCores(game, center, radius, dmg);
 }
 
-void PlantBioMine(GameState *game, Vector2 pos, int dmg)
+void PlantBioMineTimed(GameState *game, Vector2 pos, int dmg, float autoDetonateTimer)
 {
     int slot = -1;
     for (int i = 0; i < MAX_BIOMINES; i++)
@@ -680,9 +744,15 @@ void PlantBioMine(GameState *game, Vector2 pos, int dmg)
     game->bioMines[slot].position = pos;
     game->bioMines[slot].active = true;
     game->bioMines[slot].armTimer = 0.18f;
+    game->bioMines[slot].autoDetonateTimer = autoDetonateTimer;
     game->bioMines[slot].pulse = 0.0f;
     game->bioMines[slot].damage = dmg;
     SpawnParticleExplosion(game, pos, (Color){ 90, 255, 180, 255 }, 12, 35.0f, 110.0f, 3.0f, 0.35f);
+}
+
+void PlantBioMine(GameState *game, Vector2 pos, int dmg)
+{
+    PlantBioMineTimed(game, pos, dmg, 0.0f);
 }
 
 bool TriggerBioMinesInRadius(GameState *game, Vector2 pos, float radius)
@@ -769,6 +839,24 @@ void ApplyPowerUpEffect(GameState *game, PowerUpType type)
             ShowBanner(game, "CITOCINA DE ESTABILIZACAO", "Vida regenerando...",
                        (Color){ 80, 230, 140, 255 }, 2.2f);
             break;
+        case POWERUP_SUPREME_ORB:
+            game->player.supremeTimer = 7.0f;
+            game->player.speedTimer = 7.0f;
+            game->player.attackBoostTimer = 7.0f;
+            game->player.shieldTimer = 7.0f;
+            game->player.regenTimer = 7.0f;
+            game->player.regenAccum = 0.0f;
+            SpawnParticleExplosion(game, game->player.position, (Color){ 255, 220, 80, 255 }, 32, 80.0f, 260.0f, 5.0f, 0.9f);
+            ShowBanner(game, "ORBE SUPREMO", "Todos os sistemas reforcados por poucos segundos!",
+                       (Color){ 255, 220, 80, 255 }, 3.0f);
+            break;
+        case POWERUP_BARRIER:
+            game->player.shieldTimer = 12.0f;
+            game->player.maskTimer = 12.0f;
+            SpawnParticleExplosion(game, game->player.position, (Color){ 90, 200, 255, 255 }, 22, 60.0f, 180.0f, 4.0f, 0.75f);
+            ShowBanner(game, "BARREIRA DE PLASMA", "Escudo reforcado ao redor do anticorpo!",
+                       (Color){ 90, 200, 255, 255 }, 2.6f);
+            break;
         case POWERUP_TYPE_COUNT:
         default:
             break;
@@ -853,6 +941,7 @@ void InitGame(GameState *game)
     game->player.speedTimer = 0.0f;
     game->player.shieldTimer = 0.0f;
     game->player.attackBoostTimer = 0.0f;
+    game->player.supremeTimer = 0.0f;
     game->player.facingDir = 1;
     game->player.isMoving = false;
     for (int i = 0; i < 10; i++) game->player.trail[i] = game->player.position;
@@ -860,6 +949,11 @@ void InitGame(GameState *game)
     // Sistema
     game->wave = 1;
     game->totalEnemiesKilled = 0;
+    for (int s = 0; s < WEAPON_SLOT_COUNT; s++)
+    {
+        game->weaponKills[s] = 0;
+        game->weaponEvolutionAnnounced[s] = false;
+    }
     game->bioBladeAnnounced = false; // Lâmina Bioelétrica ainda bloqueada (0 abates)
     game->timeElapsed = 0.0f;
     game->screenShake = 0.0f;
@@ -901,6 +995,11 @@ void InitGame(GameState *game)
             game->maxWeaponUnlocked = 4;
             if (game->totalEnemiesKilled < BIOBLADE_UNLOCK_KILLS)
                 game->totalEnemiesKilled = BIOBLADE_UNLOCK_KILLS;
+            for (int s = 0; s < WEAPON_SLOT_COUNT; s++)
+            {
+                game->weaponKills[s] = WEAPON_EVOLVE_KILLS;
+                game->weaponEvolutionAnnounced[s] = true;
+            }
             game->bioBladeAnnounced = true;
         }
     }
@@ -1051,6 +1150,7 @@ void UpdateTutorial(GameState *game, float delta)
     // ========================================================================
     float currentSpeed = game->player.speed;
     if (game->player.speedTimer > 0.0f) currentSpeed *= 1.6f;
+    if (game->player.supremeTimer > 0.0f) currentSpeed *= 1.25f;
 
     Vector2 moveDir = { 0.0f, 0.0f };
     // Movimento completo dentro da seringa (as paredes limitam o eixo Y)
@@ -1105,6 +1205,7 @@ void UpdateTutorial(GameState *game, float delta)
     if (game->player.speedTimer > 0.0f) game->player.speedTimer -= delta;
     if (game->player.shieldTimer > 0.0f) game->player.shieldTimer -= delta;
     if (game->player.attackBoostTimer > 0.0f) game->player.attackBoostTimer -= delta;
+    if (game->player.supremeTimer > 0.0f) game->player.supremeTimer -= delta;
     // BUGFIX: poison/slow não eram decrementados no tutorial e vazavam para a gameplay
     if (game->player.slowTimer > 0.0f) game->player.slowTimer -= delta;
     for (int i = 0; i < MAX_BIOMINES; i++)
@@ -1112,6 +1213,12 @@ void UpdateTutorial(GameState *game, float delta)
         if (!game->bioMines[i].active) continue;
         game->bioMines[i].pulse += delta;
         if (game->bioMines[i].armTimer > 0.0f) game->bioMines[i].armTimer -= delta;
+        if (game->bioMines[i].autoDetonateTimer > 0.0f)
+        {
+            game->bioMines[i].autoDetonateTimer -= delta;
+            if (game->bioMines[i].autoDetonateTimer <= 0.0f && game->bioMines[i].armTimer <= 0.0f)
+                DetonateBioMine(game, &game->bioMines[i]);
+        }
     }
     if (game->player.poisonTimer > 0.0f)
     {
@@ -1503,6 +1610,7 @@ void UpdateGameplay(GameState *game, float delta)
     if (game->player.speedTimer > 0.0f) game->player.speedTimer -= delta;
     if (game->player.shieldTimer > 0.0f) game->player.shieldTimer -= delta;
     if (game->player.attackBoostTimer > 0.0f) game->player.attackBoostTimer -= delta;
+    if (game->player.supremeTimer > 0.0f) game->player.supremeTimer -= delta;
     if (game->player.attackCooldown > 0.0f) game->player.attackCooldown -= delta;
     if (game->player.damageCooldown > 0.0f) game->player.damageCooldown -= delta;
     if (game->player.poisonTimer > 0.0f) {
@@ -1553,6 +1661,7 @@ void UpdateGameplay(GameState *game, float delta)
     // ------------------------------------------------------------------------
     float currentSpeed = game->player.speed;
     if (game->player.speedTimer > 0.0f) currentSpeed *= 1.6f; // Buff de velocidade
+    if (game->player.supremeTimer > 0.0f) currentSpeed *= 1.25f;
     if (game->player.slowTimer > 0.0f) currentSpeed *= 0.5f;  // Debuff de velocidade
 
     Vector2 moveDir = { 0.0f, 0.0f };
@@ -1618,10 +1727,11 @@ void UpdateGameplay(GameState *game, float delta)
     if (IsKeyPressed(KEY_FOUR))  wpnRequest = 4;
     if (wpnRequest != 0)
     {
-        if (wpnRequest == 1 && WeaponUnlocked(game, WEAPON_BIOBLADE) &&
-            (game->player.equippedWeapon == 1 || game->player.equippedWeapon == WEAPON_BIOBLADE))
+        int evoRequest = WeaponEvolutionForSlot(wpnRequest);
+        if (WeaponUnlocked(game, evoRequest) &&
+            WeaponSlotForId(game->player.equippedWeapon) == wpnRequest)
         {
-            wpnRequest = (game->player.equippedWeapon == WEAPON_BIOBLADE) ? 1 : WEAPON_BIOBLADE;
+            wpnRequest = (game->player.equippedWeapon == evoRequest) ? WeaponBaseForSlot(wpnRequest) : evoRequest;
         }
         WeaponInfo wi = GetWeaponInfo(wpnRequest);
         if (WeaponUnlocked(game, wpnRequest))
@@ -1636,10 +1746,11 @@ void UpdateGameplay(GameState *game, float delta)
         }
         else
         {
-            // Arma bloqueada: requisito por ABATES (Lâmina Bioelétrica) ou por nível.
-            const char *req = (wpnRequest == WEAPON_BIOBLADE)
-                ? TextFormat("Desbloqueia com %d abates (%d/%d)", BIOBLADE_UNLOCK_KILLS,
-                             game->totalEnemiesKilled, BIOBLADE_UNLOCK_KILLS)
+            // Arma bloqueada: requisito por abates da evolução ou por nível.
+            int reqSlot = WeaponSlotForId(wpnRequest);
+            const char *req = WeaponIsEvolution(wpnRequest)
+                ? TextFormat("Desbloqueia com %d abates no slot %d (%d/%d)", WEAPON_EVOLVE_KILLS,
+                             reqSlot, WeaponKillCountForSlot(game, reqSlot), WEAPON_EVOLVE_KILLS)
                 : TextFormat("Desbloqueia no Nivel %d", wi.unlockLevel);
             ShowBanner(game, TextFormat("%s BLOQUEADA", wi.name), req, (Color){ 200, 80, 80, 255 }, 2.0f);
         }
@@ -1772,9 +1883,7 @@ void UpdateGameplay(GameState *game, float delta)
         // PERCEPÇÃO (dificuldade): detecta o jogador por distância e guarda a
         // última posição conhecida, perseguindo-a por um tempo mesmo sem ver.
         // --------------------------------------------------------------------
-        float detRange = game->diff.detectionRange;
-        if (detRange <= 1.0f) detRange = 480.0f; // segurança
-        bool seesPlayer = (distSqrToPlayer < detRange * detRange);
+        bool seesPlayer = true;
         if (seesPlayer)
         {
             enemy->lastKnownPlayerPos = game->player.position;
@@ -1784,8 +1893,8 @@ void UpdateGameplay(GameState *game, float delta)
         {
             enemy->aggroMemory -= delta;
         }
-        // Alvo de perseguição: o jogador (se visível) ou a última posição conhecida.
-        Vector2 chaseTarget = seesPlayer ? game->player.position : enemy->lastKnownPlayerPos;
+        // Alvo de perseguição: sempre o jogador, para não deixar inimigos presos nas bordas.
+        Vector2 chaseTarget = game->player.position;
 
         // --------------------------------------------------------------------
         // ESQUIVA DE PROJÉTEIS (médio/difícil): dash lateral curto se um projétil
@@ -1928,7 +2037,7 @@ void UpdateGameplay(GameState *game, float delta)
                         bool virusW = (game->currentWorld == WORLD_VIRUS);
                         int mtype = virusW ? ETYPE_VIRUS_SWARM : ETYPE_BACT_RANGED;
                         EnemyInitFromArchetype(m, mtype, game->wave, hmul);
-                        m->position = (Vector2){ origin.x + cosf(a) * 110.0f, origin.y + sinf(a) * 110.0f };
+                        m->position = MapBody_FindSpawnPoint((Vector2){ origin.x + cosf(a) * 110.0f, origin.y + sinf(a) * 110.0f }, 42.0f);
                         m->active = true;
                         m->patrolTarget = m->position;
                         m->isEscort = true;
@@ -2270,7 +2379,9 @@ void UpdateGameplay(GameState *game, float delta)
             // Move + aplica limites de alcance/void (Fase 5). Se o rifle estourou
             // o alcance ou saiu para o void, apenas se dissipa (sem dano).
             if (!Projectile_Advance(&game->projectiles[i], delta)) {
-                if (game->projectiles[i].isPlayerProjectile)
+                if (game->projectiles[i].type == PROJ_PLAYER_BFG_EVOLVED)
+                    DetonateBfgOmega(game, game->projectiles[i].position, game->projectiles[i].damage);
+                else if (game->projectiles[i].isPlayerProjectile)
                     SpawnParticle(game, game->projectiles[i].position, (Vector2){ 0, 0 },
                                   WeaponSkinPrimary(game->player.weaponSkinId), 3.0f, 0.22f);
                 continue;
@@ -2283,7 +2394,8 @@ void UpdateGameplay(GameState *game, float delta)
                 if (game->projectiles[i].type != PROJ_PLAYER_GRENADE &&
                     TriggerBioMinesInRadius(game, game->projectiles[i].position, 22.0f))
                 {
-                    if (game->projectiles[i].type != PROJ_PLAYER_BFG)
+                    if (game->projectiles[i].type != PROJ_PLAYER_BFG &&
+                        game->projectiles[i].type != PROJ_PLAYER_BFG_EVOLVED)
                         game->projectiles[i].active = false;
                 }
                 if (!game->projectiles[i].active) continue;
@@ -2300,6 +2412,7 @@ void UpdateGameplay(GameState *game, float delta)
                     for (int k = 0; k < collCount; k++) {
                         int eIdx = collIndices[k];
                         if (game->enemies[eIdx].active && game->enemies[eIdx].state != DEATH) {
+                            game->enemies[eIdx].lastHitWeaponSlot = game->projectiles[i].sourceWeaponSlot;
                             int applied = ApplyPlayerDamageToEnemy(game, &game->enemies[eIdx], game->projectiles[i].damage, false);
                             if (applied > 0) {
                                 SpawnDamageText(game, game->enemies[eIdx].position, applied, ORANGE);
@@ -2343,13 +2456,29 @@ void UpdateGameplay(GameState *game, float delta)
                                               : (game->enemies[j].tier == TIER_MINIBOSS) ? 60.0f : 45.0f;
                                 Rectangle eRect = { game->enemies[j].position.x - eRadius, game->enemies[j].position.y - eRadius, eRadius * 2, eRadius * 2 };
                                 if (CheckCollisionRecs(game->projectiles[i].hitbox, eRect)) {
-                                    bool isBFG = (game->projectiles[i].type == PROJ_PLAYER_BFG);
+                                    bool isBFG = (game->projectiles[i].type == PROJ_PLAYER_BFG ||
+                                                  game->projectiles[i].type == PROJ_PLAYER_BFG_EVOLVED);
+                                    bool isReplicatingRifle = (game->projectiles[i].type == PROJ_PLAYER_RIFLE_EVOLVED);
                                     // BFG não é desativado no primeiro hit (perfurante)
                                     if (!isBFG) {
+                                        if (isReplicatingRifle && game->projectiles[i].splitLevel == 0)
+                                        {
+                                            Vector2 v = game->projectiles[i].velocity;
+                                            float ca = cosf(14.0f * DEG2RAD);
+                                            float sa = sinf(14.0f * DEG2RAD);
+                                            Vector2 splitV = { v.x * ca - v.y * sa, v.x * sa + v.y * ca };
+                                            SpawnProjectileWithVelocity(game, game->projectiles[i].position, splitV,
+                                                                        PROJ_PLAYER_RIFLE_EVOLVED,
+                                                                        game->projectiles[i].damage, 1);
+                                            SpawnParticleExplosion(game, game->projectiles[i].position,
+                                                                   (Color){ 255, 170, 90, 255 }, 8,
+                                                                   35.0f, 120.0f, 2.5f, 0.25f);
+                                        }
                                         game->projectiles[i].active = false;
                                     }
 
                                     int effDmg = ScaleAffinityDamage(game->projectiles[i].damage, game->projectiles[i].type, game->enemies[j].type);
+                                    game->enemies[j].lastHitWeaponSlot = game->projectiles[i].sourceWeaponSlot;
                                     int applied = ApplyPlayerDamageToEnemy(game, &game->enemies[j], effDmg, isBFG);
                                     if (applied > 0) {
                                         if (isBFG) PlaySound(g_assets.sfxBFGDamage);
@@ -2377,7 +2506,8 @@ void UpdateGameplay(GameState *game, float delta)
                         // Projéteis diretos também destroem os Núcleos de Infecção
                         if (game->projectiles[i].active)
                         {
-                            bool isBFG2 = (game->projectiles[i].type == PROJ_PLAYER_BFG);
+                            bool isBFG2 = (game->projectiles[i].type == PROJ_PLAYER_BFG ||
+                                           game->projectiles[i].type == PROJ_PLAYER_BFG_EVOLVED);
                             if (HitInfectionCores(game, game->projectiles[i].position, 14.0f, game->projectiles[i].damage) && !isBFG2)
                                 game->projectiles[i].active = false;
                         }
@@ -2392,8 +2522,12 @@ void UpdateGameplay(GameState *game, float delta)
                 }
             }
             
-            // BFG: expira pelo lifetime
-            if (game->projectiles[i].type == PROJ_PLAYER_BFG && game->projectiles[i].lifeTime <= 0.0f) {
+            // BFG: expira pelo lifetime; a evolução detona em área no fim.
+            if (game->projectiles[i].type == PROJ_PLAYER_BFG_EVOLVED && game->projectiles[i].lifeTime <= 0.0f) {
+                game->projectiles[i].active = false;
+                DetonateBfgOmega(game, game->projectiles[i].position, game->projectiles[i].damage);
+            }
+            else if (game->projectiles[i].type == PROJ_PLAYER_BFG && game->projectiles[i].lifeTime <= 0.0f) {
                 game->projectiles[i].active = false;
                 SpawnParticleExplosion(game, game->projectiles[i].position, GREEN, 30, 100.0f, 300.0f, 5.0f, 0.8f);
             }
@@ -2402,7 +2536,8 @@ void UpdateGameplay(GameState *game, float delta)
             if (game->projectiles[i].active && game->projectiles[i].lifeTime <= 0.0f &&
                 (game->projectiles[i].type == PROJ_PLAYER_PHAGE ||
                  game->projectiles[i].type == PROJ_PLAYER_VACCINE ||
-                 game->projectiles[i].type == PROJ_PLAYER_RIFLE)) {
+                 game->projectiles[i].type == PROJ_PLAYER_RIFLE ||
+                 game->projectiles[i].type == PROJ_PLAYER_RIFLE_EVOLVED)) {
                 game->projectiles[i].active = false;
             }
             
@@ -2497,7 +2632,7 @@ void UpdateGameplay(GameState *game, float delta)
             }
             else
             {
-                game->currentScreen = SCREEN_QUIZ;
+                game->currentScreen = SCREEN_STAGE_COMPLETE;
             }
             return;
         }
@@ -2533,6 +2668,12 @@ typedef struct {
     int slot;
 } SaveThreadData;
 
+static void SavePathForSlot(int slot, char *path, int pathSize)
+{
+    if (slot == AUTO_SAVE_SLOT) snprintf(path, pathSize, "Saves/auto_save.txt");
+    else snprintf(path, pathSize, "Saves/save_slot_%d.txt", slot);
+}
+
 THREAD_RETURN SaveGameThread(void *lpParam)
 {
     SaveThreadData *data = (SaveThreadData *)lpParam;
@@ -2540,7 +2681,7 @@ THREAD_RETURN SaveGameThread(void *lpParam)
     int slot = data->slot;
 
     char path[64];
-    sprintf(path, "Saves/save_slot_%d.txt", slot);
+    SavePathForSlot(slot, path, sizeof(path));
 
     FILE *arquivo = fopen(path, "w");
     if (arquivo != NULL)
@@ -2602,16 +2743,20 @@ THREAD_RETURN SaveGameThread(void *lpParam)
             }
         }
 
-        // 4. Bloco extra (versão 2+): poções, pontos do SUS, arma, skins,
-        //    dificuldade e (versão 3) o Mundo atual da campanha.
-        fprintf(arquivo, "EXTRA %d %d %d %d %d %d %d\n",
+        // 4. Bloco extra: poções, pontos do SUS, arma, skins, dificuldade,
+        //    mundo e contadores de abate por slot para evoluções.
+        fprintf(arquivo, "EXTRA %d %d %d %d %d %d %d %d %d %d %d\n",
                 game->player.healthPotions,
                 game->player.susPoints,
                 game->player.equippedWeapon,
                 game->player.skinId,
                 game->player.weaponSkinId,
                 game->difficulty,
-                game->currentWorld);
+                game->currentWorld,
+                game->weaponKills[0],
+                game->weaponKills[1],
+                game->weaponKills[2],
+                game->weaponKills[3]);
 
         fclose(arquivo);
     }
@@ -2622,10 +2767,11 @@ THREAD_RETURN SaveGameThread(void *lpParam)
     THREAD_END();
 }
 
-void SalvarJogoSlot(GameState *game, int slot)
+static void SalvarJogoSlotEx(GameState *game, int slot, bool feedback)
 {
-    // Efeito visual imediato na thread principal para dar feedback ao jogador
-    SpawnParticleExplosion(game, game->player.position, GREEN, 15, 30.0f, 90.0f, 4.0f, 0.6f);
+    if (slot < 1 || slot > AUTO_SAVE_SLOT) return;
+    if (feedback)
+        SpawnParticleExplosion(game, game->player.position, GREEN, 15, 30.0f, 90.0f, 4.0f, 0.6f);
 
     // Snapshot para o Salvamento Assíncrono
     GameState *snapshot = (GameState *)malloc(sizeof(GameState));
@@ -2645,13 +2791,23 @@ void SalvarJogoSlot(GameState *game, int slot)
     }
 }
 
+void SalvarJogoSlot(GameState *game, int slot)
+{
+    SalvarJogoSlotEx(game, slot, true);
+}
+
+void SalvarJogoSlotSilencioso(GameState *game, int slot)
+{
+    SalvarJogoSlotEx(game, slot, false);
+}
+
 // ============================================================================
 // PERSISTÊNCIA: CARREGAR JOGO POR SLOT
 // ============================================================================
 void CarregarJogoSlot(GameState *game, int slot)
 {
     char path[64];
-    sprintf(path, "Saves/save_slot_%d.txt", slot);
+    SavePathForSlot(slot, path, sizeof(path));
 
     FILE *arquivo = fopen(path, "r");
     if (arquivo != NULL)
@@ -2665,6 +2821,14 @@ void CarregarJogoSlot(GameState *game, int slot)
         int tempWSkin = game->player.weaponSkinId;
         int tempCos[COS_SLOT_COUNT];   // cosméticos persistem ao carregar um save
         for (int s = 0; s < COS_SLOT_COUNT; s++) tempCos[s] = game->player.cosmetics[s];
+        // Preserva o MODO ADMIN/DEV através do memset (igual ao InitGame). Sem isto,
+        // "Continuar" zerava adminMode e o desbloqueio de armas/skins do dev parava
+        // de valer — as evoluções voltavam a exigir abates.
+        bool tAdmin = game->adminMode, tAdminApply = game->adminApply;
+        bool tAdminUnlockWeapons = game->adminUnlockWeapons, tAdminUnlockSkins = game->adminUnlockSkins;
+        int tAdmMaxHp = game->adminMaxHp, tAdmDmg = game->adminDamage;
+        int tAdmLevel = game->adminLevel, tAdmSus = game->adminSus;
+        float tAdmSpeed = game->adminSpeed;
 
         // Limpa estados de buffs temporários
         memset(game, 0, sizeof(GameState));
@@ -2676,6 +2840,10 @@ void CarregarJogoSlot(GameState *game, int slot)
         game->player.skinId = tempSkin;
         game->player.weaponSkinId = tempWSkin;
         for (int s = 0; s < COS_SLOT_COUNT; s++) game->player.cosmetics[s] = tempCos[s];
+        game->adminMode = tAdmin; game->adminApply = tAdminApply;
+        game->adminUnlockWeapons = tAdminUnlockWeapons; game->adminUnlockSkins = tAdminUnlockSkins;
+        game->adminMaxHp = tAdmMaxHp; game->adminDamage = tAdmDmg;
+        game->adminLevel = tAdmLevel; game->adminSus = tAdmSus; game->adminSpeed = tAdmSpeed;
         InitParticlePool(game);
 
         // Pular/Ler metadados iniciais
@@ -2755,11 +2923,15 @@ void CarregarJogoSlot(GameState *game, int slot)
         int potions = 3, sus = 0, weapon = 1, skin = game->player.skinId, wskin = game->player.weaponSkinId;
         int diffSaved = game->difficulty;
         int worldSaved = WORLD_BACTERIA; // saves antigos (sem este campo) começam no Mundo das Bactérias
+        int savedWeaponKills[WEAPON_SLOT_COUNT] = { 0, 0, 0, 0 };
         char extraTag[8] = { 0 };
         if (fscanf(arquivo, "%7s", extraTag) == 1 && strcmp(extraTag, "EXTRA") == 0)
         {
-            // Tenta ler 7 valores (com dificuldade e Mundo); tolera saves antigos com 5 ou 6.
-            int rd = fscanf(arquivo, "%d %d %d %d %d %d %d", &potions, &sus, &weapon, &skin, &wskin, &diffSaved, &worldSaved);
+            // Tenta ler valores novos; tolera saves antigos com 5, 6 ou 7 campos.
+            int rd = fscanf(arquivo, "%d %d %d %d %d %d %d %d %d %d %d",
+                            &potions, &sus, &weapon, &skin, &wskin, &diffSaved, &worldSaved,
+                            &savedWeaponKills[0], &savedWeaponKills[1],
+                            &savedWeaponKills[2], &savedWeaponKills[3]);
             if (rd < 5) { potions = 3; sus = 0; weapon = 1; }
         }
         if (diffSaved >= DIFFICULTY_EASY && diffSaved <= DIFFICULTY_HARD)
@@ -2789,6 +2961,10 @@ void CarregarJogoSlot(GameState *game, int slot)
         ApplyDifficulty(game);
         game->player.healthPotions = (potions >= 0 && potions <= 99) ? potions : 3;
         game->player.susPoints = (sus >= 0) ? sus : 0;
+        for (int s = 0; s < WEAPON_SLOT_COUNT; s++)
+            game->weaponKills[s] = (savedWeaponKills[s] > 0) ? savedWeaponKills[s] : 0;
+        if (game->weaponKills[0] <= 0 && game->totalEnemiesKilled > 0)
+            game->weaponKills[0] = game->totalEnemiesKilled;
         // BUGFIX: após carregar um save, equippedWeapon ficava 0 e o ataque não fazia nada
         game->player.equippedWeapon = (weapon >= 1 && weapon <= WEAPON_COUNT) ? weapon : 1;
         game->player.skinId = (skin >= 0 && skin < SKIN_COUNT) ? skin : 0;
@@ -2809,7 +2985,9 @@ void CarregarJogoSlot(GameState *game, int slot)
         game->maxWeaponUnlocked = 1;
         for (int w = 2; w <= 4; w++)
             if (game->player.level >= WeaponUnlockLevel(w)) game->maxWeaponUnlocked = w;
-        game->bioBladeAnnounced = (game->totalEnemiesKilled >= BIOBLADE_UNLOCK_KILLS);
+        for (int s = 0; s < WEAPON_SLOT_COUNT; s++)
+            game->weaponEvolutionAnnounced[s] = (WeaponKillCountForSlot(game, s + 1) >= WEAPON_EVOLVE_KILLS);
+        game->bioBladeAnnounced = game->weaponEvolutionAnnounced[0];
         if (!WeaponUnlocked(game, game->player.equippedWeapon))
             game->player.equippedWeapon = game->maxWeaponUnlocked;
         if (game->player.position.x < 0.0f || game->player.position.x > MAP_WIDTH ||
@@ -2851,7 +3029,7 @@ SaveSlotMeta CarregarMetadadosSlot(int slot)
 {
     SaveSlotMeta meta = { 0 };
     char path[64];
-    sprintf(path, "Saves/save_slot_%d.txt", slot);
+    SavePathForSlot(slot, path, sizeof(path));
 
     FILE *arquivo = fopen(path, "r");
     if (arquivo != NULL)
@@ -2988,6 +3166,7 @@ void UpdateTelaLoading(GameState *game, float delta)
                 game->player.speedTimer = 0.0f;
                 game->player.shieldTimer = 0.0f;
                 game->player.attackBoostTimer = 0.0f;
+                game->player.supremeTimer = 0.0f;
                 game->player.attackCooldown = 0.0f;       // pode atacar de imediato
                 game->player.damageCooldown = 2.0f;       // 2s de invulnerabilidade inicial
                 game->poisonTickAccum = 0.0f;
@@ -3141,6 +3320,7 @@ void UpdateTelaTransicao(GameState *game)
     game->player.damageCooldown = 0.0f; game->poisonTickAccum = 0.0f;
     game->player.maskTimer = 0.0f; game->player.distancingTimer = 0.0f;
     game->player.regenTimer = 0.0f; game->player.regenAccum = 0.0f;
+    game->player.supremeTimer = 0.0f;
     game->player.position = (Vector2){ MAP_WIDTH / 2.0f, MAP_HEIGHT / 2.0f };
 
     SetWeaponWorld(game->currentWorld);

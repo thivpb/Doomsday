@@ -74,6 +74,7 @@ void PlayerAttack(GameState *game, Vector2 worldMousePos)
             // em QUALQUER Mundo (a arma é desbloqueada por abates na campanha).
             if (wpn == WEAPON_BIOBLADE && game->enemies[i].shieldActive && game->enemies[i].shieldHp > 0)
                 danoTotal *= 3;
+            game->enemies[i].lastHitWeaponSlot = 1;
             int applied = ApplyPlayerDamageToEnemy(game, &game->enemies[i], danoTotal, false);
             if (applied <= 0) continue; // bloqueado pelo escudo do chefe
             PlayEnemyDamageSfx(game->enemies[i].type, game->enemies[i].tier);
@@ -127,31 +128,39 @@ void PlayerAttack(GameState *game, Vector2 worldMousePos)
         // O golpe em área também destroi os Núcleos de Infecção do escudo do chefe
         HitInfectionCores(game, game->player.position, hitRadius, 15 + danoBase);
     }
-    else if (wpn == 2) {
+    else if (wpn == 2 || wpn == WEAPON_RIFLE_EVOLVED) {
         // Cadência (Fase 5): 0.28s — antes 0.15s permitia spray contínuo. Agora
         // o alcance (~1050px) e a cadência limitam a "limpeza" sem mirar.
-        game->player.attackCooldown = 0.28f;
+        game->player.attackCooldown = (wpn == WEAPON_RIFLE_EVOLVED) ? 0.24f : 0.28f;
         PlayWeaponAttackSfx(wpn);
         game->screenShake = 0.1f;
         // Arma de projétil do Mundo atual: Rifle de Bacteriófagos (Mundo 1, bônus
         // vs. bactérias) ou Rifle de Vacina (Mundo 2, bônus vs. vírus).
-        ProjectileType rt = (game->currentWorld == WORLD_VIRUS) ? PROJ_PLAYER_VACCINE : PROJ_PLAYER_PHAGE;
+        ProjectileType rt = (wpn == WEAPON_RIFLE_EVOLVED) ? PROJ_PLAYER_RIFLE_EVOLVED :
+                            (game->currentWorld == WORLD_VIRUS) ? PROJ_PLAYER_VACCINE : PROJ_PLAYER_PHAGE;
         SpawnProjectile(game, game->player.position, worldMousePos, rt, 8 + danoBase);
     }
-    else if (wpn == 3) {
-        game->player.attackCooldown = 0.75f;
+    else if (wpn == 3 || wpn == WEAPON_RNA_LAUNCHER) {
+        game->player.attackCooldown = (wpn == WEAPON_RNA_LAUNCHER) ? 0.68f : 0.75f;
         PlayWeaponAttackSfx(wpn);
         Vector2 dir = Vector2Normalize(Vector2Subtract(worldMousePos, game->player.position));
         if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ (float)game->player.facingDir, 0.0f };
-        Vector2 minePos = Vector2Add(game->player.position, Vector2Scale(dir, 52.0f));
-        PlantBioMine(game, minePos, 48 + danoBase);
+        Vector2 minePos = (wpn == WEAPON_RNA_LAUNCHER)
+            ? Vector2Add(game->player.position, Vector2Scale(dir, 310.0f))
+            : Vector2Add(game->player.position, Vector2Scale(dir, 52.0f));
+        if (wpn == WEAPON_RNA_LAUNCHER)
+            PlantBioMineTimed(game, minePos, 58 + danoBase, RNA_LAUNCHER_FUSE);
+        else
+            PlantBioMine(game, minePos, 48 + danoBase);
         game->screenShake = 0.12f;
     }
-    else if (wpn == 4) {
-        game->player.attackCooldown = 5.0f;
+    else if (wpn == 4 || wpn == WEAPON_BFG_EVOLVED) {
+        game->player.attackCooldown = (wpn == WEAPON_BFG_EVOLVED) ? 5.8f : 5.0f;
         PlayWeaponAttackSfx(wpn);
         game->screenShake = 0.8f;
-        SpawnProjectile(game, game->player.position, worldMousePos, PROJ_PLAYER_BFG, 100 + danoBase);
+        SpawnProjectile(game, game->player.position, worldMousePos,
+                        (wpn == WEAPON_BFG_EVOLVED) ? PROJ_PLAYER_BFG_EVOLVED : PROJ_PLAYER_BFG,
+                        100 + danoBase);
     }
 }
 
@@ -189,6 +198,21 @@ WeaponInfo GetWeaponInfo(int weapon)
             "BFG Imunologico", "Projetil pesado que ATRAVESSA inimigos.",
             "Perfurante (atravessa todos)", "Limpa fileiras inteiras; guarde para hordas e chefe.",
             100, "Muito lenta", 5.0f, 4, 4, (Color){ 120, 255, 160, 255 } };
+        case WEAPON_RIFLE_EVOLVED:
+            return (WeaponInfo){
+                "Rifle Vetorial Replicante", "Dispara vetores instaveis que se duplicam no primeiro impacto.",
+                "Primeiro acerto gera um projetil extra de mesmo dano", "Evolucao do slot 2: pressione 2 para alternar depois de 30 abates com o rifle.",
+                10, "Muito rapida (0.24s)", 0.24f, 2, 2, (Color){ 255, 170, 90, 255 }, 1050.0f };
+        case WEAPON_RNA_LAUNCHER:
+            return (WeaponInfo){
+                "Lanca-Minas de RNA", "Arremessa minas biologicas a distancia.",
+                "Minas explodem em 6s ou com Mouse 2", "Evolucao do slot 3: cobre area sem precisar plantar no proprio pe.",
+                52, "Tatica (0.68s)", 0.68f, 3, 3, (Color){ 210, 120, 255, 255 } };
+        case WEAPON_BFG_EVOLVED:
+            return (WeaponInfo){
+                "BFG Imunologico Omega", "Projetil pesado que atravessa e detona no fim do trajeto.",
+                "Explosao final de alto dano em area", "Evolucao do slot 4: limpa corredores e pune grupos no ponto de impacto final.",
+                115, "Devastadora", 5.8f, 4, 4, (Color){ 255, 230, 90, 255 } };
         case WEAPON_BIOBLADE:
             // Arma melee desbloqueável (30 abates): a antiga "Escalpelizador
             // Estatico" promovida a arma própria, disponível na campanha inteira.
@@ -212,9 +236,10 @@ WeaponInfo GetWeaponInfo(int weapon)
 bool WeaponUnlocked(GameState *game, int weapon)
 {
     if (game->adminMode && game->adminUnlockWeapons)
-        return (weapon >= 1 && weapon <= WEAPON_BIOBLADE);
-    if (weapon == WEAPON_BIOBLADE)
-        return game->totalEnemiesKilled >= BIOBLADE_UNLOCK_KILLS;
+        return (weapon >= 1 && weapon <= WEAPON_COUNT);
+    int slot = WeaponSlotForId(weapon);
+    if (WeaponIsEvolution(weapon))
+        return WeaponKillCountForSlot(game, slot) >= WEAPON_EVOLVE_KILLS;
     return (weapon >= 1 && weapon <= game->maxWeaponUnlocked);
 }
 
@@ -226,4 +251,56 @@ int WeaponUnlockLevel(int weapon)
 const char *WeaponName(int weapon)
 {
     return GetWeaponInfo(weapon).name;
+}
+
+int WeaponSlotForId(int weapon)
+{
+    if (weapon == WEAPON_BIOBLADE) return 1;
+    if (weapon == WEAPON_RIFLE_EVOLVED) return 2;
+    if (weapon == WEAPON_RNA_LAUNCHER) return 3;
+    if (weapon == WEAPON_BFG_EVOLVED) return 4;
+    if (weapon < 1) return 1;
+    if (weapon > WEAPON_SLOT_COUNT) return WEAPON_SLOT_COUNT;
+    return weapon;
+}
+
+int WeaponEvolutionForSlot(int slot)
+{
+    switch (slot)
+    {
+        case 1: return WEAPON_BIOBLADE;
+        case 2: return WEAPON_RIFLE_EVOLVED;
+        case 3: return WEAPON_RNA_LAUNCHER;
+        case 4: return WEAPON_BFG_EVOLVED;
+        default: return 1;
+    }
+}
+
+int WeaponBaseForSlot(int slot)
+{
+    if (slot < 1) return 1;
+    if (slot > WEAPON_SLOT_COUNT) return WEAPON_SLOT_COUNT;
+    return slot;
+}
+
+bool WeaponIsEvolution(int weapon)
+{
+    return weapon == WEAPON_BIOBLADE || weapon == WEAPON_RIFLE_EVOLVED ||
+           weapon == WEAPON_RNA_LAUNCHER || weapon == WEAPON_BFG_EVOLVED;
+}
+
+int WeaponKillCountForSlot(GameState *game, int slot)
+{
+    if (!game) return 0;
+    if (slot < 1 || slot > WEAPON_SLOT_COUNT) return 0;
+    int kills = game->weaponKills[slot - 1];
+    if (slot == 1 && kills <= 0 && game->totalEnemiesKilled > 0)
+        kills = game->totalEnemiesKilled;
+    return kills;
+}
+
+int WeaponKillsToEvolve(GameState *game, int slot)
+{
+    int left = WEAPON_EVOLVE_KILLS - WeaponKillCountForSlot(game, slot);
+    return (left > 0) ? left : 0;
 }
