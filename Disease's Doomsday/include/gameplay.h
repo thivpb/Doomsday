@@ -26,6 +26,13 @@ void SpawnParticleExplosion(GameState *game, Vector2 pos, Color col, int count, 
 // Spawna um power-up em uma posição específica (por exemplo, após derrotar um inimigo)
 void SpawnPowerUpAt(GameState *game, Vector2 position, int type);
 
+// Cor e glifo procedural de um power-up (fonte ÚNICA usada no mundo e no tutorial).
+// DrawPowerUpGlyph desenha o losango + ícone branco; useSprite=true usa o PNG
+// quando disponível, false força o vetor (nítido em tamanhos pequenos). O halo
+// externo fica por conta de quem chama.
+Color PowerUpColor(PowerUpType type);
+void  DrawPowerUpGlyph(PowerUpType type, Vector2 pos, float pulse, bool useSprite);
+
 // Contabiliza a morte de um inimigo de forma centralizada: XP, score, contadores
 // de onda e chance de drop de power-up. Usado por TODAS as armas (lâmina, fuzil,
 // granada, BFG, veneno) para manter recompensas consistentes.

@@ -611,6 +611,97 @@ static void DrawCollisionDebugHUD(GameState *game, Font font)
                (Vector2){ 16, 196 }, 12.0f, 1.0f, RAYWHITE);
 }
 
+// ============================================================================
+// POWER-UPS: cor + glifo procedural COMPARTILHADOS (gameplay, mundo do tutorial
+// e aba BÁSICO do guia). Fonte ÚNICA da verdade — antes este desenho estava
+// duplicado em DrawTelaGameplay e DrawTutorialWorld.
+// ============================================================================
+Color PowerUpColor(PowerUpType type)
+{
+    switch (type)
+    {
+        case HP_RECOVERY:         return (Color){ 50, 220, 100, 255 };
+        case SPEED_BOOST:         return THEME_COLOR_MAIN;
+        case SHIELD:              return (Color){ 30, 100, 200, 255 };
+        case ATTACK_BOOST:        return (Color){ 255, 60, 60, 255 };
+        case POWERUP_MASK:        return (Color){ 120, 220, 255, 255 };
+        case POWERUP_DISTANCING:  return (Color){ 120, 255, 200, 255 };
+        case POWERUP_RNA_GRENADE: return (Color){ 120, 255, 160, 255 };
+        case POWERUP_CYTOKINE:    return (Color){ 80, 230, 140, 255 };
+        case POWERUP_SUPREME_ORB: return (Color){ 255, 220, 80, 255 };
+        case POWERUP_BARRIER:     return (Color){ 90, 200, 255, 255 };
+        default:                  return YELLOW;
+    }
+}
+
+static SpriteID PowerUpSpriteId(PowerUpType type)
+{
+    switch (type)
+    {
+        case POWERUP_MASK:        return SPR_ITEM_MASK;
+        case POWERUP_DISTANCING:  return SPR_ITEM_DISTANCING;
+        case POWERUP_RNA_GRENADE: return SPR_ITEM_RNA_GRENADE;
+        case POWERUP_CYTOKINE:    return SPR_ITEM_CYTOKINE;
+        default:                  return (SpriteID)-1;
+    }
+}
+
+// Desenha o ícone do power-up (losango + glifo branco). useSprite=true usa o PNG
+// quando disponível (no mundo); false força o glifo vetorial (nítido no tutorial,
+// sem depender de sprites carregados). NÃO desenha o halo externo: quem chama decide.
+void DrawPowerUpGlyph(PowerUpType type, Vector2 pos, float pulse, bool useSprite)
+{
+    Color itemCol = PowerUpColor(type);
+    SpriteID itemSpr = PowerUpSpriteId(type);
+
+    if (useSprite && itemSpr != (SpriteID)-1 && SpriteAvailable(itemSpr))
+    {
+        DrawSpriteCentered(itemSpr, pos, (Vector2){ pulse * 2.2f, pulse * 2.2f }, 0.0f, WHITE);
+        return;
+    }
+
+    DrawPoly(pos, 4, pulse, 0.0f, itemCol);
+    DrawPolyLinesEx(pos, 4, pulse, 0.0f, 2.0f, WHITE);
+
+    if (type == HP_RECOVERY) {
+        DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
+        DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
+    } else if (type == SPEED_BOOST) {
+        DrawLineEx((Vector2){pos.x - 4, pos.y - 4}, (Vector2){pos.x + 2, pos.y}, 2.0f, WHITE);
+        DrawLineEx((Vector2){pos.x - 4, pos.y + 4}, (Vector2){pos.x + 2, pos.y}, 2.0f, WHITE);
+        DrawLineEx((Vector2){pos.x - 8, pos.y - 4}, (Vector2){pos.x - 2, pos.y}, 2.0f, WHITE);
+        DrawLineEx((Vector2){pos.x - 8, pos.y + 4}, (Vector2){pos.x - 2, pos.y}, 2.0f, WHITE);
+    } else if (type == SHIELD) {
+        DrawRectangle(pos.x - 5, pos.y - 4, 10, 6, WHITE);
+        DrawTriangle((Vector2){pos.x - 5, pos.y + 2}, (Vector2){pos.x, pos.y + 8}, (Vector2){pos.x + 5, pos.y + 2}, WHITE);
+    } else if (type == ATTACK_BOOST) {
+        DrawRectangle(pos.x - 1, pos.y - 6, 2, 10, WHITE);
+        DrawRectangle(pos.x - 4, pos.y + 1, 8, 2, WHITE);
+    } else if (type == POWERUP_MASK) {
+        DrawRectangleRounded((Rectangle){ pos.x - 8, pos.y - 5, 16, 10 }, 0.6f, 4, WHITE);
+        DrawLineEx((Vector2){pos.x - 8, pos.y - 3}, (Vector2){pos.x - 12, pos.y - 6}, 1.5f, WHITE);
+        DrawLineEx((Vector2){pos.x + 8, pos.y - 3}, (Vector2){pos.x + 12, pos.y - 6}, 1.5f, WHITE);
+    } else if (type == POWERUP_DISTANCING) {
+        DrawCircleLines((int)pos.x - 6, (int)pos.y, 3.0f, WHITE);
+        DrawCircleLines((int)pos.x + 6, (int)pos.y, 3.0f, WHITE);
+        DrawLineEx((Vector2){pos.x - 2, pos.y}, (Vector2){pos.x + 2, pos.y}, 1.5f, WHITE);
+    } else if (type == POWERUP_RNA_GRENADE) {
+        DrawCircleV(pos, 5.0f, WHITE);
+        DrawLineEx((Vector2){pos.x + 3, pos.y - 4}, (Vector2){pos.x + 7, pos.y - 8}, 1.5f, WHITE);
+    } else if (type == POWERUP_CYTOKINE) {
+        DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
+        DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
+    } else if (type == POWERUP_SUPREME_ORB) {
+        DrawCircleV(pos, 7.0f, WHITE);
+        DrawCircleLines((int)pos.x, (int)pos.y, 12.0f, WHITE);
+        DrawLineEx((Vector2){pos.x - 10, pos.y}, (Vector2){pos.x + 10, pos.y}, 1.5f, WHITE);
+        DrawLineEx((Vector2){pos.x, pos.y - 10}, (Vector2){pos.x, pos.y + 10}, 1.5f, WHITE);
+    } else if (type == POWERUP_BARRIER) {
+        DrawCircleLines((int)pos.x, (int)pos.y, 10.0f, WHITE);
+        DrawTriangle((Vector2){pos.x, pos.y - 9}, (Vector2){pos.x - 8, pos.y + 5}, (Vector2){pos.x + 8, pos.y + 5}, WHITE);
+    }
+}
+
 void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
 {
     // IDENTIDADE VISUAL POR ONDA: cada fase tem cor de fundo, grade, células e
@@ -664,69 +755,8 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
         {
             float pulse = 18.0f + sinf(game->powerUps[i].pulseTimer * 6.0f) * 3.0f;
             Vector2 pos = game->powerUps[i].position;
-
-            Color itemCol = YELLOW;
-            SpriteID itemSpr = (SpriteID)-1;
-            if (game->powerUps[i].type == HP_RECOVERY) { itemCol = (Color){ 50, 220, 100, 255 }; }
-            else if (game->powerUps[i].type == SPEED_BOOST) { itemCol = THEME_COLOR_MAIN; }
-            else if (game->powerUps[i].type == SHIELD) { itemCol = (Color){ 30, 100, 200, 255 }; }
-            else if (game->powerUps[i].type == ATTACK_BOOST) { itemCol = (Color){ 255, 60, 60, 255 }; }
-            else if (game->powerUps[i].type == POWERUP_MASK) { itemCol = (Color){ 120, 220, 255, 255 }; itemSpr = SPR_ITEM_MASK; }
-            else if (game->powerUps[i].type == POWERUP_DISTANCING) { itemCol = (Color){ 120, 255, 200, 255 }; itemSpr = SPR_ITEM_DISTANCING; }
-            else if (game->powerUps[i].type == POWERUP_RNA_GRENADE) { itemCol = (Color){ 120, 255, 160, 255 }; itemSpr = SPR_ITEM_RNA_GRENADE; }
-            else if (game->powerUps[i].type == POWERUP_CYTOKINE) { itemCol = (Color){ 80, 230, 140, 255 }; itemSpr = SPR_ITEM_CYTOKINE; }
-            else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) { itemCol = (Color){ 255, 220, 80, 255 }; }
-            else if (game->powerUps[i].type == POWERUP_BARRIER) { itemCol = (Color){ 90, 200, 255, 255 }; }
-
-            DrawCircleV(pos, pulse + 4.0f, Fade(itemCol, 0.3f));
-
-            if (itemSpr != (SpriteID)-1 && SpriteAvailable(itemSpr))
-            {
-                DrawSpriteCentered(itemSpr, pos, (Vector2){ pulse * 2.2f, pulse * 2.2f }, 0.0f, WHITE);
-            }
-            else
-            {
-                DrawPoly(pos, 4, pulse, 0.0f, itemCol);
-                DrawPolyLinesEx(pos, 4, pulse, 0.0f, 2.0f, WHITE);
-
-                if (game->powerUps[i].type == HP_RECOVERY) {
-                    DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
-                    DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
-                } else if (game->powerUps[i].type == SPEED_BOOST) {
-                    DrawLineEx((Vector2){pos.x - 4, pos.y - 4}, (Vector2){pos.x + 2, pos.y}, 2.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 4, pos.y + 4}, (Vector2){pos.x + 2, pos.y}, 2.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 8, pos.y - 4}, (Vector2){pos.x - 2, pos.y}, 2.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 8, pos.y + 4}, (Vector2){pos.x - 2, pos.y}, 2.0f, WHITE);
-                } else if (game->powerUps[i].type == SHIELD) {
-                    DrawRectangle(pos.x - 5, pos.y - 4, 10, 6, WHITE);
-                    DrawTriangle((Vector2){pos.x - 5, pos.y + 2}, (Vector2){pos.x, pos.y + 8}, (Vector2){pos.x + 5, pos.y + 2}, WHITE);
-                } else if (game->powerUps[i].type == ATTACK_BOOST) {
-                    DrawRectangle(pos.x - 1, pos.y - 6, 2, 10, WHITE);
-                    DrawRectangle(pos.x - 4, pos.y + 1, 8, 2, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_MASK) {
-                    DrawRectangleRounded((Rectangle){ pos.x - 8, pos.y - 5, 16, 10 }, 0.6f, 4, WHITE);
-                    DrawLineEx((Vector2){pos.x - 8, pos.y - 3}, (Vector2){pos.x - 12, pos.y - 6}, 1.5f, WHITE);
-                    DrawLineEx((Vector2){pos.x + 8, pos.y - 3}, (Vector2){pos.x + 12, pos.y - 6}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_DISTANCING) {
-                    DrawCircleLines((int)pos.x - 6, (int)pos.y, 3.0f, WHITE);
-                    DrawCircleLines((int)pos.x + 6, (int)pos.y, 3.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 2, pos.y}, (Vector2){pos.x + 2, pos.y}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_RNA_GRENADE) {
-                    DrawCircleV(pos, 5.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x + 3, pos.y - 4}, (Vector2){pos.x + 7, pos.y - 8}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_CYTOKINE) {
-                    DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
-                    DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) {
-                    DrawCircleV(pos, 7.0f, WHITE);
-                    DrawCircleLines((int)pos.x, (int)pos.y, 12.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 10, pos.y}, (Vector2){pos.x + 10, pos.y}, 1.5f, WHITE);
-                    DrawLineEx((Vector2){pos.x, pos.y - 10}, (Vector2){pos.x, pos.y + 10}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_BARRIER) {
-                    DrawCircleLines((int)pos.x, (int)pos.y, 10.0f, WHITE);
-                    DrawTriangle((Vector2){pos.x, pos.y - 9}, (Vector2){pos.x - 8, pos.y + 5}, (Vector2){pos.x + 8, pos.y + 5}, WHITE);
-                }
-            }
+            DrawCircleV(pos, pulse + 4.0f, Fade(PowerUpColor(game->powerUps[i].type), 0.3f));
+            DrawPowerUpGlyph(game->powerUps[i].type, pos, pulse, true);
         }
     }
 
@@ -960,6 +990,9 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
             else if (p->type == PROJ_PLAYER_PHAGE) pCol = (Color){ 120, 255, 160, 255 };   // bacteriófago (verde)
             else if (p->type == PROJ_PLAYER_VACCINE) pCol = (Color){ 120, 200, 255, 255 }; // vacina (azul)
             else if (p->type == PROJ_VIRAL_SPORE) pCol = (Color){ 190, 235, 90, 255 };     // material viral
+            else if (p->type == PROJ_BULLET_SPREAD) pCol = (Color){ 80, 230, 255, 255 };   // toxina rápida (ciano)
+            else if (p->type == PROJ_TOXIN_DART) pCol = (Color){ 90, 170, 255, 255 };      // dardo veloz (azul)
+            else if (p->type == PROJ_PLAGUE_ORB) pCol = (Color){ 235, 150, 40, 255 };      // orbe de área (laranja)
 
             if (p->type == PROJ_PLAYER_BFG_EVOLVED) {
                 // BFG IMUNOLOGICO OMEGA: singularidade em camadas — halo duplo, dois
@@ -1034,6 +1067,45 @@ void DrawTelaGameplay(GameState *game, Font font, bool drawHUD)
                 }
                 DrawCircleV(p->position, 6.0f, pCol);
                 DrawCircleV(p->position, 2.5f, (Color){ 60, 40, 10, 255 });
+            } else if (p->type == PROJ_BULLET_SPREAD) {
+                // Toxina rápida: risco fino ciano alinhado à velocidade + ponta brilhante.
+                Vector2 dir = Vector2Normalize(p->velocity);
+                if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ 1.0f, 0.0f };
+                Vector2 tail = Vector2Subtract(p->position, Vector2Scale(dir, 24.0f));
+                DrawLineEx(tail, p->position, 3.0f, Fade(pCol, 0.5f));
+                DrawCircleV(p->position, 4.5f, pCol);
+                DrawCircleV(p->position, 2.0f, WHITE);
+            } else if (p->type == PROJ_TOXIN_DART) {
+                // Dardo tóxico: MUITO veloz — rastro longo azul + cabeça branca-quente.
+                Vector2 dir = Vector2Normalize(p->velocity);
+                if (dir.x == 0.0f && dir.y == 0.0f) dir = (Vector2){ 1.0f, 0.0f };
+                Vector2 tail = Vector2Subtract(p->position, Vector2Scale(dir, 34.0f));
+                Vector2 mid  = Vector2Subtract(p->position, Vector2Scale(dir, 16.0f));
+                DrawLineEx(tail, p->position, 2.0f, Fade(pCol, 0.22f));
+                DrawLineEx(mid, p->position, 4.0f, Fade(pCol, 0.6f));
+                float ang = atan2f(dir.y, dir.x) * RAD2DEG;
+                DrawPoly(p->position, 3, 7.0f, ang, pCol);              // ponta de dardo
+                DrawCircleV(p->position, 3.0f, (Color){ 235, 245, 255, 255 });
+            } else if (p->type == PROJ_VOID_BOLT) {
+                // Bolha pesada (DANO DOBRADO): casca magenta + núcleo escuro + anel de
+                // ALERTA girando que telegrafa o perigo do projétil mais forte.
+                float tt = (float)GetTime();
+                float r = 13.0f;
+                DrawCircleGradient((int)p->position.x, (int)p->position.y, r * 1.7f, Fade(pCol, 0.30f), BLANK);
+                DrawRing(p->position, r * 0.92f, r * 1.08f, tt * 90.0f, tt * 90.0f + 200.0f, 24, Fade(pCol, 0.75f));
+                DrawCircleV(p->position, r, pCol);
+                DrawCircleV(p->position, r * 0.55f, (Color){ 40, 0, 50, 255 });
+                DrawCircleV(p->position, r * 0.25f, WHITE);
+            } else if (p->type == PROJ_PLAGUE_ORB) {
+                // Orbe da praga: pesado e lento — leve oscilação + anel-aura pulsante (área).
+                float tt = (float)GetTime();
+                float wob = 1.0f + 0.12f * sinf(tt * 6.0f + p->position.x * 0.05f);
+                float r = 10.0f * wob;
+                DrawCircleGradient((int)p->position.x, (int)p->position.y, r * 2.0f, Fade(pCol, 0.28f), BLANK);
+                DrawRing(p->position, r * 1.3f, r * 1.55f, tt * 60.0f, tt * 60.0f + 300.0f, 24, Fade(pCol, 0.55f));
+                DrawCircleV(p->position, r, pCol);
+                DrawCircleV(p->position, r * 0.5f, (Color){ 255, 220, 150, 255 });
+                DrawCircleV(p->position, r * 0.22f, WHITE);
             } else {
                 DrawCircle(p->position.x, p->position.y, srcSize, pCol);
                 DrawCircleLines(p->position.x, p->position.y, srcSize, WHITE);
@@ -1277,69 +1349,8 @@ void DrawTutorialWorld(GameState *game, Font font)
         {
             float pulse = 18.0f + sinf(game->powerUps[i].pulseTimer * 6.0f) * 3.0f;
             Vector2 pos = game->powerUps[i].position;
-
-            Color itemCol = YELLOW;
-            SpriteID itemSpr = (SpriteID)-1;
-            if (game->powerUps[i].type == HP_RECOVERY) { itemCol = (Color){ 50, 220, 100, 255 }; }
-            else if (game->powerUps[i].type == SPEED_BOOST) { itemCol = THEME_COLOR_MAIN; }
-            else if (game->powerUps[i].type == SHIELD) { itemCol = (Color){ 30, 100, 200, 255 }; }
-            else if (game->powerUps[i].type == ATTACK_BOOST) { itemCol = (Color){ 255, 60, 60, 255 }; }
-            else if (game->powerUps[i].type == POWERUP_MASK) { itemCol = (Color){ 120, 220, 255, 255 }; itemSpr = SPR_ITEM_MASK; }
-            else if (game->powerUps[i].type == POWERUP_DISTANCING) { itemCol = (Color){ 120, 255, 200, 255 }; itemSpr = SPR_ITEM_DISTANCING; }
-            else if (game->powerUps[i].type == POWERUP_RNA_GRENADE) { itemCol = (Color){ 120, 255, 160, 255 }; itemSpr = SPR_ITEM_RNA_GRENADE; }
-            else if (game->powerUps[i].type == POWERUP_CYTOKINE) { itemCol = (Color){ 80, 230, 140, 255 }; itemSpr = SPR_ITEM_CYTOKINE; }
-            else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) { itemCol = (Color){ 255, 220, 80, 255 }; }
-            else if (game->powerUps[i].type == POWERUP_BARRIER) { itemCol = (Color){ 90, 200, 255, 255 }; }
-
-            DrawCircleV(pos, pulse + 4.0f, Fade(itemCol, 0.3f));
-
-            if (itemSpr != (SpriteID)-1 && SpriteAvailable(itemSpr))
-            {
-                DrawSpriteCentered(itemSpr, pos, (Vector2){ pulse * 2.2f, pulse * 2.2f }, 0.0f, WHITE);
-            }
-            else
-            {
-                DrawPoly(pos, 4, pulse, 0.0f, itemCol);
-                DrawPolyLinesEx(pos, 4, pulse, 0.0f, 2.0f, WHITE);
-
-                if (game->powerUps[i].type == HP_RECOVERY) {
-                    DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
-                    DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
-                } else if (game->powerUps[i].type == SPEED_BOOST) {
-                    DrawLineEx((Vector2){pos.x - 4, pos.y - 4}, (Vector2){pos.x + 2, pos.y}, 2.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 4, pos.y + 4}, (Vector2){pos.x + 2, pos.y}, 2.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 8, pos.y - 4}, (Vector2){pos.x - 2, pos.y}, 2.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 8, pos.y + 4}, (Vector2){pos.x - 2, pos.y}, 2.0f, WHITE);
-                } else if (game->powerUps[i].type == SHIELD) {
-                    DrawRectangle(pos.x - 5, pos.y - 4, 10, 6, WHITE);
-                    DrawTriangle((Vector2){pos.x - 5, pos.y + 2}, (Vector2){pos.x, pos.y + 8}, (Vector2){pos.x + 5, pos.y + 2}, WHITE);
-                } else if (game->powerUps[i].type == ATTACK_BOOST) {
-                    DrawRectangle(pos.x - 1, pos.y - 6, 2, 10, WHITE);
-                    DrawRectangle(pos.x - 4, pos.y + 1, 8, 2, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_MASK) {
-                    DrawRectangleRounded((Rectangle){ pos.x - 8, pos.y - 5, 16, 10 }, 0.6f, 4, WHITE);
-                    DrawLineEx((Vector2){pos.x - 8, pos.y - 3}, (Vector2){pos.x - 12, pos.y - 6}, 1.5f, WHITE);
-                    DrawLineEx((Vector2){pos.x + 8, pos.y - 3}, (Vector2){pos.x + 12, pos.y - 6}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_DISTANCING) {
-                    DrawCircleLines((int)pos.x - 6, (int)pos.y, 3.0f, WHITE);
-                    DrawCircleLines((int)pos.x + 6, (int)pos.y, 3.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 2, pos.y}, (Vector2){pos.x + 2, pos.y}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_RNA_GRENADE) {
-                    DrawCircleV(pos, 5.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x + 3, pos.y - 4}, (Vector2){pos.x + 7, pos.y - 8}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_CYTOKINE) {
-                    DrawRectangle(pos.x - 2, pos.y - 6, 4, 12, WHITE);
-                    DrawRectangle(pos.x - 6, pos.y - 2, 12, 4, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_SUPREME_ORB) {
-                    DrawCircleV(pos, 7.0f, WHITE);
-                    DrawCircleLines((int)pos.x, (int)pos.y, 12.0f, WHITE);
-                    DrawLineEx((Vector2){pos.x - 10, pos.y}, (Vector2){pos.x + 10, pos.y}, 1.5f, WHITE);
-                    DrawLineEx((Vector2){pos.x, pos.y - 10}, (Vector2){pos.x, pos.y + 10}, 1.5f, WHITE);
-                } else if (game->powerUps[i].type == POWERUP_BARRIER) {
-                    DrawCircleLines((int)pos.x, (int)pos.y, 10.0f, WHITE);
-                    DrawTriangle((Vector2){pos.x, pos.y - 9}, (Vector2){pos.x - 8, pos.y + 5}, (Vector2){pos.x + 8, pos.y + 5}, WHITE);
-                }
-            }
+            DrawCircleV(pos, pulse + 4.0f, Fade(PowerUpColor(game->powerUps[i].type), 0.3f));
+            DrawPowerUpGlyph(game->powerUps[i].type, pos, pulse, true);
         }
     }
 

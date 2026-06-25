@@ -113,6 +113,28 @@ int main(void)
     BeginTextureMode(rt); ClearBackground(BLACK); DrawTelaVitoria(&g, g_gameFont); EndTextureMode();
     shot("victory_stats");
 
+    // ---- TUTORIAL: captura de cada aba (verificacao visual offline) ----
+    extern void TutorialPreviewSetTab(int tab);
+    const char *tabNames[7] = { "basico", "armas", "inimigos", "chefe", "skins", "xp", "hordas" };
+    for (int tb = 0; tb < 7; tb++)
+    {
+        baseState(&g);
+        g.currentScreen = SCREEN_CONTROLS;
+        TutorialPreviewSetTab(tb);
+        BeginTextureMode(rt); ClearBackground(BLACK); DrawTelaControles(&g, g_gameFont); EndTextureMode();
+        char nm[48]; snprintf(nm, sizeof(nm), "tut_%d_%s", tb, tabNames[tb]);
+        shot(nm);
+    }
+    // Avanca o relogio (~4.5s no loop de 6s) para pegar a fase de LEVEL-UP da aba
+    // XP (barras de status cheias) e outra posicao da varredura de HORDAS.
+    WaitTime(4.0);
+    baseState(&g); g.currentScreen = SCREEN_CONTROLS; TutorialPreviewSetTab(5);
+    BeginTextureMode(rt); ClearBackground(BLACK); DrawTelaControles(&g, g_gameFont); EndTextureMode();
+    shot("tut_5_xp_levelup");
+    baseState(&g); g.currentScreen = SCREEN_CONTROLS; TutorialPreviewSetTab(6);
+    BeginTextureMode(rt); ClearBackground(BLACK); DrawTelaControles(&g, g_gameFont); EndTextureMode();
+    shot("tut_6_hordas_b");
+
     UnloadRenderTexture(rt);
     UnloadGameplayResources();
     UnloadGameAssets();

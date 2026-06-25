@@ -45,10 +45,12 @@ static void SpawnProjectileInternal(GameState *game, Vector2 pos, Vector2 dir, P
         switch (type)
         {
             case PROJ_ACID_ARC:       speed = 220.0f; break;
-            case PROJ_BULLET_SPREAD:  speed = 350.0f; break;
+            case PROJ_BULLET_SPREAD:  speed = 500.0f; break; // toxina rápida (influenza / aedes)
             case PROJ_VIRAL_SPORE:    speed = 330.0f; break; // material viral (atirador/elite/chefe)
             case PROJ_VOID_BOLT:      speed = 400.0f; break;
             case PROJ_BOSS_BULLET:    speed = 300.0f; break;
+            case PROJ_TOXIN_DART:     speed = 540.0f; break; // dardo MUITO veloz (KPC)
+            case PROJ_PLAGUE_ORB:     speed = 250.0f; break; // orbe pesado de área (rajada de chefe)
             case PROJ_PLAYER_RIFLE:   // rifles retos do jogador: alcance limitado
             case PROJ_PLAYER_PHAGE:
             case PROJ_PLAYER_VACCINE:
@@ -103,6 +105,12 @@ bool Projectile_Advance(Projectile *p, float dt)
     // 2) Parede/void: rifles retos do jogador se dissipam ao sair do corpo,
     //    impedindo limpeza de alvos fora da área jogável.
     if (IsStraightRifle(p->type) && !MapBody_Contains(p->position)) { p->active = false; return false; }
+
+    // 3) Projéteis INIMIGOS atravessam o corpo de um lado ao outro livremente,
+    //    mas se dissipam ao cruzar a borda da área jogável: não escapam para
+    //    fora do organismo (limite do mapa). Granada/BFG do jogador são
+    //    isPlayerProjectile e mantêm seu comportamento próprio.
+    if (!p->isPlayerProjectile && !MapBody_Contains(p->position)) { p->active = false; return false; }
 
     return true;
 }

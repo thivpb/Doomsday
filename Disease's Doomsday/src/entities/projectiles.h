@@ -17,7 +17,9 @@ typedef enum ProjectileType
     PROJ_PLAYER_VACCINE,    // Rifle de Vacina (Mundo 2): bônus vs. vírus / escudo
     PROJ_PLAYER_RIFLE_EVOLVED, // Rifle evoluído: duplica uma vez no primeiro impacto
     PROJ_PLAYER_BFG_EVOLVED,   // BFG evoluído: perfura e explode ao fim
-    PROJ_VIRAL_SPORE        // Material viral disparado pelos vírus atirador/elite/chefe
+    PROJ_VIRAL_SPORE,       // Material viral disparado pelos vírus atirador/elite/chefe
+    PROJ_TOXIN_DART,        // Dardo tóxico (Superbactéria KPC): MUITO rápido, rastro longo azul
+    PROJ_PLAGUE_ORB         // Orbe da praga (rajada radial dos chefes): pesado, lento, área laranja
 } ProjectileType;
 
 typedef struct Projectile

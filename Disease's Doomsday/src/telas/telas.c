@@ -11,6 +11,8 @@
 #include "../../Assets/@models/enemy_model.h"
 #include "../../Assets/@models/doctor_model.h"
 #include "../../Assets/@models/weapons_model.h"
+#include "../../Assets/@models/player_model.h"  // DrawPlayerModel (previews de skin no guia)
+#include "../../Assets/@models/cosmetics.h"     // CosmeticItemCount (combos aleatórios)
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -1406,6 +1408,46 @@ void UpdateTelaDifficulty(GameState *game, Vector2 mouse)
 #define TUT_TAB_COUNT 7
 static int g_tutTab = 0;
 static float g_tutWeaponsScroll = 0.0f;
+
+// --- Previews ALEATÓRIOS de skin na aba SKINS do guia -----------------------
+// Para cada vestimenta (0=Padrao,1=Medica,2=Infectada) sorteamos uma combinação
+// de cosméticos dos slots visíveis. Re-sorteado sempre que a aba SKINS é aberta,
+// para o jogador ver combinações diferentes. As "Bracadeiras de Quitina"
+// (COS_ARMS índice 2) são propositalmente EXCLUÍDAS (ficam estranhas).
+static const CosmeticSlot g_tutSkinSlots[] = { COS_HELMET, COS_FACE, COS_CHEST, COS_ARMS, COS_BOOTS, COS_FX };
+#define TUT_SKIN_SLOT_COUNT ((int)(sizeof(g_tutSkinSlots) / sizeof(g_tutSkinSlots[0])))
+static int g_tutSkinCombo[SKIN_COUNT][COS_SLOT_COUNT];
+static int g_tutSkinWeapon[SKIN_COUNT];   // arma EMPUNHADA aleatória por preview
+static int g_tutSkinWpnSkin[SKIN_COUNT];  // cor (skin) da arma aleatória por preview
+static int g_tutSkinRollTab = -1; // detecta (re)entrada na aba SKINS para re-sortear
+
+static void TutRollSkinPreviews(void)
+{
+    for (int s = 0; s < SKIN_COUNT; s++)
+    {
+        // Arma empunhada e cor do disparo também aleatórias (variedade real).
+        g_tutSkinWeapon[s]  = GetRandomValue(1, WEAPON_COUNT);
+        g_tutSkinWpnSkin[s] = GetRandomValue(0, WEAPON_SKIN_COUNT - 1);
+        for (int k = 0; k < COS_SLOT_COUNT; k++) g_tutSkinCombo[s][k] = 0;
+        for (int j = 0; j < TUT_SKIN_SLOT_COUNT; j++)
+        {
+            CosmeticSlot slot = g_tutSkinSlots[j];
+            int n = CosmeticItemCount(slot);
+            if (n <= 1) continue;            // só "nenhum" disponível: mantém 0
+            if (slot == COS_ARMS)
+            {
+                // Remove EXATAMENTE o índice 2 (Bracadeiras de Quitina): sorteia em
+                // [0, n-2] e remapeia para pular o 2 (robusto se surgirem mais peças).
+                int pick = GetRandomValue(0, n - 2);
+                g_tutSkinCombo[s][slot] = (pick >= 2) ? pick + 1 : pick;
+            }
+            else
+            {
+                g_tutSkinCombo[s][slot] = GetRandomValue(0, n - 1);
+            }
+        }
+    }
+}
 static const char *g_tutTabNames[TUT_TAB_COUNT] = {
     "BASICO", "ARMAS", "INIMIGOS", "CHEFE", "SKINS", "XP/UPGRADES", "HORDAS"
 };
@@ -1477,17 +1519,6 @@ static void DrawTutorialIcon(int tab, Vector2 c, float size, Color accent, float
             for (int i = 0; i < 3; i++)
                 DrawRing(c, s*(0.12f+i*.10f), s*(0.15f+i*.10f), 200, 340, 18, Fade(accent, 1.0f-i*.18f));
             break;
-    }
-}
-
-// Linha "rótulo: texto" auxiliar do tutorial
-static void TutLine(Font font, float x, float y, const char *label, Color lc, const char *text)
-{
-    DrawTextEx(font, label, (Vector2){ x, y }, 18.0f, 1.0f, lc);
-    if (text && text[0])
-    {
-        float lw = MeasureTextEx(font, label, 18.0f, 1.0f).x;
-        DrawTextEx(font, text, (Vector2){ x + lw + 10.0f, y }, 18.0f, 1.0f, Fade(WHITE, 0.85f));
     }
 }
 
@@ -1571,28 +1602,141 @@ static void DrawTutorialWeaponCard(Font font, Rectangle card, int weapon,
                     15.0f, 1.0f, Fade((Color){ 130, 230, 170, 255 }, 0.92f));
 }
 
+// Mini-card de power-up para a aba BÁSICO: ícone idêntico ao do jogo (glifo
+// procedural via DrawPowerUpGlyph) + nome + efeito curto, com leve pulso.
+static void DrawTutPowerupMini(Font font, Rectangle card, PowerUpType type,
+                               const char *name, const char *blurb, float time, int idx)
+{
+    Color col = PowerUpColor(type);
+    DrawRectangleRounded(card, 0.22f, 5, Fade((Color){ 10, 14, 20, 255 }, 0.72f));
+    DrawRectangleRoundedLines(card, 0.22f, 5, Fade(col, 0.42f));
+
+    Vector2 ic = { card.x + 23.0f, card.y + card.height * 0.5f };
+    float pulse = 12.5f + sinf(time * 4.0f + idx) * 1.2f;
+    DrawCircleV(ic, 16.0f, Fade(col, 0.18f));
+    DrawPowerUpGlyph(type, ic, pulse, false);
+
+    DrawTextEx(font, name, (Vector2){ card.x + 46.0f, card.y + 5.0f }, 13.0f, 1.0f, col);
+    DrawTextWrapped(font, blurb,
+                    (Rectangle){ card.x + 46.0f, card.y + 21.0f, card.width - 52.0f, card.height - 23.0f },
+                    11.0f, 1.0f, Fade(WHITE, 0.66f));
+}
+
+// Mini-glifo de projétil para a legenda da aba INIMIGOS: mesma cor/identidade do
+// render do jogo (render_gameplay.c), em escala pequena e centrado em `c`.
+static void DrawTutProjectileGlyph(ProjectileType type, Vector2 c, float time)
+{
+    switch (type)
+    {
+        case PROJ_ACID_ARC: {
+            Color col = (Color){ 0, 230, 80, 255 };
+            DrawCircleV(c, 7.0f, Fade(col, 0.30f));
+            DrawCircleV(c, 5.0f, col);
+            DrawCircleV((Vector2){ c.x, c.y + 4.0f }, 2.0f, Fade(col, 0.7f));
+        } break;
+        case PROJ_BULLET_SPREAD: {
+            Color col = (Color){ 80, 230, 255, 255 };
+            DrawLineEx((Vector2){ c.x - 12.0f, c.y }, (Vector2){ c.x + 6.0f, c.y }, 3.0f, Fade(col, 0.5f));
+            DrawCircleV((Vector2){ c.x + 6.0f, c.y }, 4.0f, col);
+            DrawCircleV((Vector2){ c.x + 6.0f, c.y }, 2.0f, WHITE);
+        } break;
+        case PROJ_VOID_BOLT: {
+            Color col = (Color){ 220, 60, 255, 255 };
+            DrawRing(c, 9.0f, 11.0f, time * 90.0f, time * 90.0f + 200.0f, 18, Fade(col, 0.8f));
+            DrawCircleV(c, 7.0f, col);
+            DrawCircleV(c, 3.0f, (Color){ 40, 0, 50, 255 });
+        } break;
+        case PROJ_VIRAL_SPORE: {
+            Color col = (Color){ 190, 235, 90, 255 };
+            for (int s = 0; s < 6; s++) {
+                float a = (time * 220.0f + s * 60.0f) * DEG2RAD;
+                DrawLineEx(c, (Vector2){ c.x + cosf(a) * 9.0f, c.y + sinf(a) * 9.0f }, 1.5f, Fade(col, 0.85f));
+            }
+            DrawCircleV(c, 5.0f, col);
+        } break;
+        case PROJ_TOXIN_DART: {
+            Color col = (Color){ 90, 170, 255, 255 };
+            DrawLineEx((Vector2){ c.x - 13.0f, c.y }, (Vector2){ c.x + 7.0f, c.y }, 2.5f, Fade(col, 0.5f));
+            DrawPoly((Vector2){ c.x + 7.0f, c.y }, 3, 6.0f, 0.0f, col);
+            DrawCircleV((Vector2){ c.x + 7.0f, c.y }, 2.0f, WHITE);
+        } break;
+        case PROJ_PLAGUE_ORB: {
+            Color col = (Color){ 235, 150, 40, 255 };
+            DrawRing(c, 9.0f, 11.0f, time * 60.0f, time * 60.0f + 300.0f, 18, Fade(col, 0.55f));
+            DrawCircleV(c, 7.0f, col);
+            DrawCircleV(c, 3.0f, (Color){ 255, 220, 150, 255 });
+        } break;
+        default: DrawCircleV(c, 6.0f, YELLOW); break;
+    }
+}
+
 static void DrawTutContent(GameState *game, Font font, Rectangle panel)
 {
     float x = panel.x + 28.0f;
     float y = panel.y + 22.0f;
-    float step = 30.0f;
     Color accent = TutAccent(g_tutTab);
+
+    // Re-sorteia os previews de skin sempre que a aba SKINS (4) é (re)aberta, para
+    // o jogador ver combinações diferentes a cada vez que abre essa parte do guia.
+    if (g_tutTab == 4) { if (g_tutSkinRollTab != 4) { TutRollSkinPreviews(); g_tutSkinRollTab = 4; } }
+    else g_tutSkinRollTab = -1;
 
     switch (g_tutTab)
     {
-        case 0: // BASICO + CONTROLES
-            DrawTextEx(font, "OBJETIVO", (Vector2){ x, y }, 22.0f, 1.0f, accent); y += 30.0f;
-            DrawTextEx(font, "Voce e um Anticorpo. Sobreviva a 5 hordas de patogenos, derrote o", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f)); y += 24.0f;
-            DrawTextEx(font, "chefe da onda 5 e proteja o organismo do Distrito Federal.", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f)); y += 38.0f;
-            DrawTextEx(font, "CONTROLES", (Vector2){ x, y }, 22.0f, 1.0f, accent); y += 32.0f;
-            TutLine(font, x, y, "WASD / SETAS", YELLOW, "Mover o Anticorpo"); y += step;
-            TutLine(font, x, y, "CLIQUE ESQ. / ESPACO", YELLOW, "Atacar com a arma equipada"); y += step;
-            TutLine(font, x, y, "1  2  3  4", YELLOW, "Selecionar / trocar de arma"); y += step;
-            TutLine(font, x, y, "E", YELLOW, "Usar pocao de vida (cura 50%)"); y += step;
-            TutLine(font, x, y, "ESC", YELLOW, "Pausar / voltar"); y += step;
-            TutLine(font, x, y, "F5 / F9", YELLOW, "Salvar / carregar rapido (slot 1)"); y += step;
-            TutLine(font, x, y, "POWER-UPS", GOLD, "Cura, Velocidade, Escudo e Dano x2 (brilham no mapa)");
+        case 0: // BASICO — objetivo + controles + power-ups (visual rico)
+        {
+            float t = (float)GetTime();
+
+            // 1) OBJETIVO (faixa superior)
+            Rectangle objR = { x, y, 786.0f, 76.0f };
+            DrawUISectionPanel(font, objR, "OBJETIVO", accent, 1.0f);
+            DrawTutorialIcon(0, (Vector2){ objR.x + objR.width - 30.0f, objR.y + 23.0f }, 20.0f, accent, t);
+            DrawTextEx(font, "Voce e um Anticorpo. Sobreviva a 5 hordas e derrote o chefe da onda 5",
+                       (Vector2){ objR.x + 16.0f, objR.y + 44.0f }, 14.0f, 1.0f, Fade(WHITE, 0.85f));
+            DrawTextEx(font, "para proteger o organismo do Distrito Federal.",
+                       (Vector2){ objR.x + 16.0f, objR.y + 60.0f }, 14.0f, 1.0f, Fade(WHITE, 0.85f));
+
+            // 2) CONTROLES (coluna esquerda) — chips "tecla : acao"
+            Rectangle ctrlR = { x, y + 88.0f, 372.0f, 248.0f };
+            DrawUISectionPanel(font, ctrlR, "CONTROLES", accent, 1.0f);
+            const char *keys[6] = { "WASD / SETAS", "CLIQUE / ESPACO", "1 2 3 4", "E", "ESC", "F5 / F9" };
+            const char *acts[6] = { "Mover o Anticorpo", "Atacar com a arma", "Trocar de arma",
+                                    "Pocao de vida (50%)", "Pausar / voltar", "Salvar / carregar" };
+            for (int i = 0; i < 6; i++)
+            {
+                Rectangle ch = { ctrlR.x + 14.0f, ctrlR.y + 48.0f + i * 32.0f, ctrlR.width - 28.0f, 28.0f };
+                DrawRectangleRounded(ch, 0.4f, 5, Fade((Color){ 12, 16, 22, 255 }, 0.70f));
+                DrawRectangleRoundedLines(ch, 0.4f, 5, Fade(accent, 0.26f));
+                Rectangle kb = { ch.x + 6.0f, ch.y + 4.0f, 128.0f, 20.0f };
+                DrawRectangleRounded(kb, 0.4f, 4, Fade(GOLD, 0.16f));
+                DrawTextFitCentered(font, keys[i], kb, 13.0f, GOLD, true);
+                DrawTextEx(font, acts[i], (Vector2){ kb.x + kb.width + 12.0f, ch.y + 6.0f },
+                           13.0f, 1.0f, Fade(WHITE, 0.84f));
+            }
+
+            // 3) POWER-UPS (coluna direita) — grade 2x5 com os MESMOS ícones do jogo
+            Rectangle puR = { x + 390.0f, y + 88.0f, 396.0f, 248.0f };
+            DrawUISectionPanel(font, puR, "POWER-UPS", accent, 1.0f);
+            static const struct { PowerUpType t; const char *n; const char *b; } pus[10] = {
+                { HP_RECOVERY,         "Cura",          "Recupera vida." },
+                { SPEED_BOOST,         "Velocidade",    "Move mais rapido." },
+                { SHIELD,              "Escudo",        "Bloqueia dano." },
+                { ATTACK_BOOST,        "Dano x2",       "Ataque reforcado." },
+                { POWERUP_MASK,        "Mascara",       "Reduz dano recebido." },
+                { POWERUP_DISTANCING,  "Distanciamento","Afasta patogenos." },
+                { POWERUP_RNA_GRENADE, "Desestab. RNA", "Explosao em area." },
+                { POWERUP_CYTOKINE,    "Citocina",      "Regenera a vida." },
+                { POWERUP_SUPREME_ORB, "Orbe Supremo",  "Tudo reforcado." },
+                { POWERUP_BARRIER,     "Barreira",      "Escudo + mascara." },
+            };
+            for (int i = 0; i < 10; i++)
+            {
+                int col = i % 2, row = i / 2;
+                Rectangle mc = { puR.x + 14.0f + col * 186.0f, puR.y + 46.0f + row * 39.0f, 178.0f, 35.0f };
+                DrawTutPowerupMini(font, mc, pus[i].t, pus[i].n, pus[i].b, t, i);
+            }
             break;
+        }
 
         case 1: // ARMAS
         {
@@ -1680,12 +1824,37 @@ static void DrawTutContent(GameState *game, Font font, Rectangle panel)
                 "KPC: tanque resistente com tiro pesado."
             };
             for (int i = 0; i < 3; i++)
-                DrawEnemyGuideRow(font, (Rectangle){ leftX, y + 27.0f + i*92.0f, 274.0f, 78.0f },
+                DrawEnemyGuideRow(font, (Rectangle){ leftX, y + 27.0f + i*88.0f, 274.0f, 76.0f },
                                   bacteriaTypes[i], bacteriaWave[i], bacteriaRole[i]);
 
             for (int i = 0; i < 5; i++)
-                DrawEnemyGuideRow(font, (Rectangle){ rightX, y + 27.0f + i*61.0f, 478.0f, 52.0f },
+                DrawEnemyGuideRow(font, (Rectangle){ rightX, y + 27.0f + i*54.0f, 478.0f, 48.0f },
                                   virusTypes[i], virusWave[i], virusRole[i]);
+
+            // ---- Legenda: TIPOS DE DISPARO INIMIGO (cada inimigo tem seu projétil) ----
+            float legY = y + 300.0f;
+            DrawTextEx(font, "TIPOS DE DISPARO INIMIGO  (cor + animacao por inimigo)",
+                       (Vector2){ leftX, legY }, 13.0f, 1.0f, Fade(accent, 0.95f));
+            struct { ProjectileType t; const char *n; const char *e; int dmg; } legend[6] = {
+                { PROJ_ACID_ARC,      "ACIDO",    "Bacilo",   11 },
+                { PROJ_BULLET_SPREAD, "TOXINA",   "Influenza", 8 },
+                { PROJ_VOID_BOLT,     "BOLHA x2", "Sarampo",  20 },
+                { PROJ_VIRAL_SPORE,   "ESPORO",   "Coronav.", 12 },
+                { PROJ_TOXIN_DART,    "DARDO",    "KPC",      14 },
+                { PROJ_PLAGUE_ORB,    "ORBE",     "Chefe",    14 },
+            };
+            float chipW = 128.0f, chipH = 44.0f, chipY = legY + 16.0f, lt = (float)GetTime();
+            for (int i = 0; i < 6; i++)
+            {
+                Rectangle ch = { leftX + i * (chipW + 2.0f), chipY, chipW, chipH };
+                DrawRectangleRounded(ch, 0.18f, 5, Fade((Color){ 8, 13, 20, 255 }, 0.72f));
+                DrawRectangleRoundedLines(ch, 0.18f, 5, Fade(accent, 0.30f));
+                DrawTutProjectileGlyph(legend[i].t, (Vector2){ ch.x + 16.0f, ch.y + chipH * 0.5f }, lt);
+                DrawTextEx(font, legend[i].n, (Vector2){ ch.x + 31.0f, ch.y + 3.0f }, 11.0f, 1.0f, Fade(WHITE, 0.92f));
+                DrawTextEx(font, legend[i].e, (Vector2){ ch.x + 31.0f, ch.y + 17.0f }, 9.5f, 1.0f, Fade(WHITE, 0.60f));
+                DrawTextEx(font, TextFormat("Dano %d", legend[i].dmg),
+                           (Vector2){ ch.x + 31.0f, ch.y + 29.0f }, 9.5f, 1.0f, Fade(GOLD, 0.92f));
+            }
             break;
         }
 
@@ -1723,36 +1892,225 @@ static void DrawTutContent(GameState *game, Font font, Rectangle panel)
             break;
         }
 
-        case 4: // SKINS
-            DrawTextEx(font, "Abra 'SKINS' no menu para escolher (preview ao vivo).", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f)); y += 34.0f;
-            DrawTextEx(font, "SKINS DO ANTICORPO:", (Vector2){ x, y }, 18.0f, 1.0f, accent); y += 28.0f;
-            TutLine(font, x + 16, y, "PADRAO", YELLOW, "cavaleiro imune classico."); y += 26.0f;
-            TutLine(font, x + 16, y, "MEDICA", YELLOW, "jaleco branco com cruz vermelha."); y += 26.0f;
-            TutLine(font, x + 16, y, "INFECTADA", YELLOW, "armadura roxa corrompida."); y += 34.0f;
-            DrawTextEx(font, "SKIN DA ARMA muda a cor dos disparos (Padrao, Plasma, Toxica).", (Vector2){ x, y }, 16.0f, 1.0f, Fade(WHITE, 0.8f)); y += 26.0f;
-            DrawTextEx(font, "As skins sao visuais e nao alteram o balanceamento.", (Vector2){ x, y }, 15.0f, 1.0f, Fade(GRAY, 0.9f));
-            break;
+        case 4: // SKINS — 3 previews ALEATÓRIOS (Padrao / Medica / Infectada)
+        {
+            DrawTextEx(font, "VESTIMENTAS DO ANTICORPO", (Vector2){ x, y }, 20.0f, 1.0f, accent);
+            DrawTextEx(font, "Cada quadro mostra uma combinacao aleatoria de cosmeticos - muda a cada visita.",
+                       (Vector2){ x, y + 26.0f }, 14.0f, 1.0f, Fade(WHITE, 0.72f));
 
-        case 5: // XP / UPGRADES
-            DrawTextEx(font, "PROGRESSAO DE RPG", (Vector2){ x, y }, 22.0f, 1.0f, accent); y += 32.0f;
-            TutLine(font, x, y, "XP:", GOLD, "derrotar patogenos enche a barra roxa de XP."); y += 28.0f;
-            TutLine(font, x, y, "NIVEL:", GOLD, "ao subir, ganha +Vida, +Dano, +Velocidade e cura total."); y += 28.0f;
-            TutLine(font, x, y, "ARMAS:", GOLD, "Fuzil (Nv2), Granada (Nv3) e BFG (Nv4) desbloqueiam por nivel."); y += 28.0f;
-            DrawTextEx(font, "PONTOS DO SUS", (Vector2){ x, y }, 20.0f, 1.0f, accent); y += 28.0f;
-            TutLine(font, x, y, "QUIZ:", GOLD, "acertar o quiz entre ondas da +50 Pontos do SUS."); y += 26.0f;
-            TutLine(font, x, y, "LOJA:", GOLD, "gaste os pontos em +Vida Max, +Velocidade ou +Dano."); y += 26.0f;
-            DrawTextEx(font, "A tela de Melhorias do SUS aparece automaticamente entre as ondas.", (Vector2){ x, y }, 15.0f, 1.0f, Fade(WHITE, 0.8f));
-            break;
+            const char *snames[3] = { "PADRAO", "MEDICA", "INFECTADA" };
+            const char *sdescs[3] = {
+                "Cavaleiro imune classico.",
+                "Jaleco branco, cruz vermelha.",
+                "Armadura roxa corrompida."
+            };
+            float t = (float)GetTime();
+            float cardW = 250.0f, gap = 18.0f, cardY = y + 60.0f, cardH = 268.0f;
+            for (int i = 0; i < SKIN_COUNT && i < 3; i++)
+            {
+                Rectangle card = { x + i * (cardW + gap), cardY, cardW, cardH };
+                DrawRectangleRounded(card, 0.06f, 8, Fade((Color){ 14, 10, 22, 255 }, 0.82f));
+                DrawRectangleRoundedLines(card, 0.06f, 8, Fade(accent, 0.55f));
 
-        default: // HORDAS
-            DrawTextEx(font, "SISTEMA DE HORDAS", (Vector2){ x, y }, 22.0f, 1.0f, accent); y += 32.0f;
-            DrawTextEx(font, "Sao 5 ondas, cada uma mais dificil: mais inimigos e mais fortes.", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f)); y += 26.0f;
-            DrawTextEx(font, "Elimine todos os patogenos da onda para avancar.", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f)); y += 26.0f;
-            DrawTextEx(font, "Entre as ondas: QUIZ educativo + tela de Melhorias do SUS.", (Vector2){ x, y }, 17.0f, 1.0f, Fade(WHITE, 0.85f)); y += 32.0f;
-            TutLine(font, x, y, "ONDA 5:", (Color){ 255, 90, 90, 255 }, "batalha de CHEFE garantida (veja a aba CHEFE)."); y += 30.0f;
-            DrawTextEx(font, "Um banner no topo avisa cada nova horda e a chegada do chefe.", (Vector2){ x, y }, 15.0f, 1.0f, (Color){ 120, 220, 140, 255 });
+                Rectangle pv = { card.x + 14.0f, card.y + 14.0f, card.width - 28.0f, 178.0f };
+                DrawRectangleRounded(pv, 0.06f, 6, Fade((Color){ 8, 14, 22, 255 }, 0.70f));
+                DrawCircleGradient((int)(pv.x + pv.width * 0.5f), (int)(pv.y + pv.height * 0.5f + 14.0f),
+                                   94.0f, Fade(accent, 0.18f), BLANK);
+                DrawEllipse((int)(pv.x + pv.width * 0.5f), (int)(pv.y + pv.height - 24.0f),
+                            56.0f, 13.0f, Fade(BLACK, 0.35f));
+
+                // Preview vivo do modelo procedural com a combinação sorteada.
+                Player tmp = game->player;
+                tmp.skinId = i;
+                for (int k = 0; k < COS_SLOT_COUNT; k++) tmp.cosmetics[k] = g_tutSkinCombo[i][k];
+                tmp.equippedWeapon = g_tutSkinWeapon[i];   // arma empunhada aleatória
+                tmp.weaponSkinId   = g_tutSkinWpnSkin[i];  // cor do disparo aleatória
+                tmp.position = (Vector2){ pv.x + pv.width * 0.5f, pv.y + pv.height * 0.5f + 26.0f };
+                tmp.isMoving = false; tmp.facingDir = 1;
+                tmp.squashX = 1.0f; tmp.squashY = 1.0f; tmp.attackBoostTimer = 0.0f;
+                DrawPlayerModel(&tmp, 60.0f, THEME_COLOR_MAIN, t, 0.0f);
+
+                DrawTextFitCentered(font, snames[i],
+                                    (Rectangle){ card.x, card.y + 200.0f, card.width, 24.0f },
+                                    19.0f, GOLD, true);
+                DrawTextWrapped(font, sdescs[i],
+                                (Rectangle){ card.x + 12.0f, card.y + 228.0f, card.width - 24.0f, 34.0f },
+                                13.0f, 1.0f, Fade(WHITE, 0.74f));
+            }
+
+            DrawTextEx(font, "Abra SKINS no menu para montar a sua. A skin da arma muda a cor dos disparos.",
+                       (Vector2){ x, cardY + cardH + 10.0f }, 13.0f, 1.0f, Fade(WHITE, 0.70f));
             break;
+        }
+
+        case 5: // XP / UPGRADES — explicador + DEMO animada (loop de 6s)
+        {
+            float t = (float)GetTime();
+            float loop = fmodf(t, 6.0f);
+
+            // --- Zona A: explicador (coluna esquerda) ---
+            Rectangle expR = { x, y, 360.0f, 340.0f };
+            DrawUISectionPanel(font, expR, "PROGRESSAO", accent, 1.0f);
+            const char *labels[4] = { "XP", "NIVEL", "ARMAS", "PONTOS DO SUS" };
+            const char *texts[4]  = {
+                "Derrotar patogenos enche a barra roxa de XP.",
+                "Ao subir: +Vida, +Dano, +Velocidade e cura total.",
+                "Fuzil (Nv2), Granada (Nv3) e BFG (Nv4) por nivel.",
+                "Acerte o quiz entre ondas e gaste na Loja do SUS."
+            };
+            for (int i = 0; i < 4; i++)
+            {
+                float cy = expR.y + 50.0f + i * 70.0f;
+                DrawTextEx(font, labels[i], (Vector2){ expR.x + 16.0f, cy }, 16.0f, 1.0f, GOLD);
+                DrawTextWrapped(font, texts[i],
+                                (Rectangle){ expR.x + 16.0f, cy + 22.0f, expR.width - 32.0f, 42.0f },
+                                13.0f, 1.0f, Fade(WHITE, 0.78f));
+            }
+
+            // --- Zona B: ganhar XP (inimigo morre -> motes -> barra enche) ---
+            Rectangle xpR = { x + 376.0f, y, 410.0f, 150.0f };
+            DrawUISectionPanel(font, xpR, "1. DERROTE E GANHE XP", accent, 1.0f);
+            Vector2 ec = { xpR.x + 52.0f, xpR.y + 92.0f };
+            float barX = xpR.x + 116.0f, barW = 268.0f, barY = xpR.y + 82.0f;
+
+            float deathA = 1.0f;                            // inimigo vivo
+            if (loop >= 1.3f && loop < 1.7f) deathA = 1.0f - (loop - 1.3f) / 0.4f; // "morrendo"
+            else if (loop >= 1.7f) deathA = 0.0f;
+            if (deathA > 0.01f)
+            {
+                Enemy ev = {0};
+                EnemyInitFromArchetype(&ev, ETYPE_VIRUS_RANGED, 5, 1.0f);
+                ev.active = true; ev.spawnAnim = 1.0f; ev.animTime = t;
+                DrawEnemyModel(&ev, ec, 17.0f, 0.0f, 1.0f, deathA);
+            }
+
+            float xpv = 0.35f;                              // barra de XP enchendo
+            if (loop >= 1.7f && loop < 3.6f) xpv = 0.35f + 0.65f * UIEase((loop - 1.7f) / 1.9f);
+            else if (loop >= 3.6f) xpv = 1.0f;
+            Color xpCol = (Color){ 150, 90, 210, 255 };
+            DrawUIStatBar(font, barX, barY, barW, "XP", xpv, TextFormat("%d%%", (int)(xpv * 100.0f)), xpCol);
+
+            if (loop >= 1.3f && loop < 2.1f)                // motes de XP voando para a barra
+            {
+                float mp = (loop - 1.3f) / 0.8f;
+                for (int m = 0; m < 5; m++)
+                {
+                    float k = UIEase(Clamp(mp - m * 0.12f, 0.0f, 1.0f));
+                    Vector2 dst = { barX + barW * xpv, barY + 6.0f };
+                    Vector2 mo = { Lerp(ec.x, dst.x, k), Lerp(ec.y, dst.y, k) - sinf(k * PI) * 22.0f };
+                    DrawCircleV(mo, 3.0f + (1.0f - k) * 1.5f, Fade(xpCol, 0.45f + 0.5f * (1.0f - k)));
+                }
+            }
+
+            // --- Zona C: subir de nivel (barras de status enchendo + flash) ---
+            Rectangle luR = { x + 376.0f, y + 162.0f, 410.0f, 178.0f };
+            DrawUISectionPanel(font, luR, "2. SUBA DE NIVEL", accent, 1.0f);
+            bool leveling = (loop >= 3.6f);
+            if (loop >= 3.6f && loop < 4.0f)
+                DrawRectangleRounded(luR, 0.05f, 8, Fade(GOLD, 0.12f * (1.0f - (loop - 3.6f) / 0.4f)));
+
+            const char *st[3] = { "VIDA", "DANO", "VELOCIDADE" };
+            const char *sv[3] = { "+15", "+6", "+10" };
+            Color sc[3] = { (Color){ 80, 220, 120, 255 }, (Color){ 235, 80, 80, 255 }, (Color){ 80, 200, 255, 255 } };
+            for (int i = 0; i < 3; i++)
+            {
+                float v = leveling ? UIEase(Clamp((loop - 3.7f - i * 0.22f) / 0.7f, 0.0f, 1.0f)) : 0.0f;
+                float by = luR.y + 52.0f + i * 40.0f;
+                DrawUIStatBar(font, luR.x + 16.0f, by, luR.width - 120.0f, st[i], v, leveling ? sv[i] : "", sc[i]);
+            }
+            if (leveling)
+            {
+                float a = Clamp((loop - 3.6f) / 0.3f, 0.0f, 1.0f);
+                DrawTextEx(font, "SUBIU DE NIVEL!", (Vector2){ luR.x + luR.width - 172.0f, luR.y + 14.0f },
+                           16.0f, 1.0f, Fade(GOLD, a));
+            }
+            break;
+        }
+
+        default: // HORDAS — progressao animada das ondas + revelacao do chefe
+        {
+            float t = (float)GetTime();
+            int active = (int)fmodf(t * 0.6f, 5.0f);
+
+            Rectangle topR = { x, y, 786.0f, 56.0f };
+            DrawUISectionPanel(font, topR, "SISTEMA DE HORDAS", accent, 1.0f);
+            DrawTextEx(font, "5 ondas crescentes: mais inimigos e mais fortes. Entre elas: QUIZ + Melhorias do SUS.",
+                       (Vector2){ topR.x + 16.0f, topR.y + 30.0f }, 13.0f, 1.0f, Fade(WHITE, 0.78f));
+
+            // Totais ATIVOS por onda (horda base 8+onda*6, + mini-chefe + escolta;
+            // onda 5 = chefe + 12 lacaios), conforme StartNextWave (wave_manager.c).
+            const int counts[5] = { 17, 24, 30, 37, 13 };
+            int dotTypes[4] = { ETYPE_VIRUS_SWARM, ETYPE_VIRUS_MELEE, ETYPE_VIRUS_RANGED, ETYPE_VIRUS_ELITE };
+            Color dotCols[4];
+            for (int c = 0; c < 4; c++) { const EnemyArchetype *a = EnemyArchetypeFor(dotTypes[c]); dotCols[c] = a ? a->palette : GRAY; }
+
+            float colW = 150.0f, gap = 9.0f, colY = y + 68.0f, colH = 268.0f;
+            for (int i = 0; i < 5; i++)
+            {
+                Rectangle col = { x + i * (colW + gap), colY, colW, colH };
+                bool isBoss = (i == 4);
+                bool isActive = (i == active);
+                Color cAcc = isBoss ? (Color){ 255, 90, 90, 255 } : accent;
+                float pulse = 0.5f + 0.45f * (0.5f + 0.5f * sinf(t * 6.0f));
+
+                DrawRectangleRounded(col, 0.07f, 6, Fade((Color){ 10, 14, 22, 255 }, 0.80f));
+                DrawRectangleRoundedLines(col, 0.07f, 6, Fade(cAcc, isActive ? pulse : 0.38f));
+
+                Rectangle hc = { col.x + 12.0f, col.y + 10.0f, col.width - 24.0f, 24.0f };
+                DrawRectangleRounded(hc, 0.4f, 5, Fade(cAcc, 0.18f));
+                DrawTextFitCentered(font, TextFormat("ONDA %d", i + 1), hc, 15.0f,
+                                    isBoss ? (Color){ 255, 130, 130, 255 } : cAcc, true);
+
+                // Pop-in dos inimigos quando a varredura chega na coluna.
+                float popK = isActive ? UIEase(Clamp(fmodf(t * 0.6f, 1.0f) * 1.6f, 0.0f, 1.0f)) : 1.0f;
+
+                if (isBoss)
+                {
+                    Vector2 bc = { col.x + col.width * 0.5f, col.y + 116.0f };
+                    float glow = 0.5f + 0.5f * sinf(t * 3.0f);
+                    DrawCircleGradient((int)bc.x, (int)bc.y, 50.0f + glow * 8.0f,
+                                       Fade((Color){ 255, 90, 90, 255 }, 0.22f), BLANK);
+                    DrawTutorialEnemyPreview(ETYPE_VIRUS_BOSS, bc, 22.0f * (0.92f + 0.08f * popK), true);
+                    Rectangle bb = { col.x + 16.0f, col.y + 166.0f, col.width - 32.0f, 22.0f };
+                    DrawRectangleRounded(bb, 0.4f, 5, Fade((Color){ 255, 70, 70, 255 }, 0.20f + 0.18f * glow));
+                    DrawTextFitCentered(font, "CHEFE", bb, 15.0f, (Color){ 255, 160, 160, 255 }, true);
+                    DrawTextEx(font, "chefe + 12 lacaios", (Vector2){ col.x + 14.0f, col.y + 194.0f },
+                               11.0f, 1.0f, Fade(WHITE, 0.72f));
+                }
+                else
+                {
+                    int shown = counts[i] / 2; if (shown > 16) shown = 16; if (shown < 4) shown = 4;
+                    int variety = i + 1; if (variety > 4) variety = 4; // onda 1 so enxame; cresce ate 4 tipos
+                    Vector2 mid = { col.x + col.width * 0.5f, col.y + 108.0f };
+                    for (int j = 0; j < shown; j++)
+                    {
+                        float ja = j * 2.39996f;                  // angulo aureo: espalha bem
+                        float jr = 7.0f + (j % 6) * 8.5f;
+                        Vector2 dp = { mid.x + cosf(ja) * jr, mid.y + sinf(ja * 1.1f) * jr * 0.72f };
+                        float ds = (3.0f + (j % 3)) * (0.55f + 0.45f * popK);
+                        DrawCircleV(dp, ds, dotCols[j % variety]);
+                    }
+                    DrawTextEx(font, TextFormat("%d inimigos", counts[i]),
+                               (Vector2){ col.x + 14.0f, col.y + 174.0f }, 12.0f, 1.0f, Fade(WHITE, 0.82f));
+                    DrawTextEx(font, "+ mini-chefe", (Vector2){ col.x + 14.0f, col.y + 194.0f },
+                               11.0f, 1.0f, Fade(GOLD, 0.82f));
+                }
+
+                DrawUIStatBar(font, col.x + 14.0f, col.y + colH - 44.0f, col.width - 28.0f, "DIFICULDADE",
+                              (float)(i + 1) / 5.0f, NULL, isBoss ? (Color){ 255, 90, 90, 255 } : accent);
+            }
+            break;
+        }
     }
+}
+
+// Hook de PREVIEW (offline): força a aba ativa do tutorial para captura de tela
+// pelas ferramentas em tools/ (mesma ideia de ArsenalPreviewSet/QuizPreviewForce).
+void TutorialPreviewSetTab(int tab)
+{
+    if (tab < 0) tab = 0;
+    if (tab >= TUT_TAB_COUNT) tab = TUT_TAB_COUNT - 1;
+    g_tutTab = tab;
 }
 
 void DrawTelaControles(GameState *game, Font font)
