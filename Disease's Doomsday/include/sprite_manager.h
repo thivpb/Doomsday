@@ -29,6 +29,13 @@ typedef enum SpriteID
     SPR_PLAYER_MEDIC,        // skinId 1 (Médica)
     SPR_PLAYER_INFECTED,     // skinId 2 (Infectada)
 
+    // ---- Player 2 (ANTICORPO-V) — folhas de sprite ANIMADAS (4/4/3 frames) ----
+    // Folhas em tira horizontal: idle/walk = 4 frames; hurt = 3 frames. Fundo já
+    // transparente (geradas por tools/build_player2_sprites.sh).
+    SPR_HERO2_IDLE,
+    SPR_HERO2_WALK,
+    SPR_HERO2_HURT,
+
     // ---- Inimigos — Mundo 1 (Bactérias) ----
     SPR_BACT_MELEE,
     SPR_BACT_RANGED,
@@ -111,5 +118,17 @@ void DrawSpriteCentered(SpriteID id, Vector2 center, Vector2 destSize, float rot
 // Isso permite manter o jogo 100% jogável mesmo sem nenhum PNG.
 bool DrawSpriteOrFallback(SpriteID id, Vector2 center, Vector2 destSize, float rotation, Color tint,
                           void (*fallbackProc)(void *userData), void *userData);
+
+// ---- Folhas de sprite ANIMADAS (tira horizontal de `frameCount` frames) ----
+// Desenha o frame `frameIndex` (recorta a fração frameWidth = tex.width/frameCount)
+// centralizado em `center`, escalado para `destSize`, com `rotation` (graus) e `tint`.
+// `flipX` espelha horizontalmente (para virar o personagem conforme a direção).
+// Não faz nada se o sprite não estiver disponível.
+void DrawSpriteFrame(SpriteID id, int frameIndex, int frameCount, Vector2 center,
+                     Vector2 destSize, float rotation, Color tint, bool flipX);
+
+// true se TODAS as folhas do ANTICORPO-V (idle/walk/hurt) carregaram. Se false, o
+// render cai no Anticorpo procedural (o jogo nunca quebra por PNG ausente).
+bool Player2SpritesReady(void);
 
 #endif // SPRITE_MANAGER_H

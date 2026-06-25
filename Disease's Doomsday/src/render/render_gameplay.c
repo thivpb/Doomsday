@@ -6,6 +6,7 @@
 #include "../../Assets/Maps/map_seringa.h"
 #include "../../Assets/Maps/map_body.h"
 #include "../../Assets/@models/player_model.h"
+#include "../../Assets/@models/player2_model.h"
 #include "../../Assets/@models/enemy_model.h"
 #include "../../Assets/@models/doctor_model.h"
 #include <stdio.h>
@@ -121,7 +122,17 @@ void DrawPlayerHero(GameState *game, Vector2 pPos, float playerSize)
     if (game->player.skinId == 1) playerSpr = SPR_PLAYER_MEDIC;
     else if (game->player.skinId == 2) playerSpr = SPR_PLAYER_INFECTED;
 
-    if (SpriteAvailable(playerSpr))
+    // 2º personagem jogável (ANTICORPO-V): folhas de sprite animadas. Tem prioridade
+    // quando selecionado E suas folhas existem; senão, cai nos ramos do Anticorpo
+    // original (que ficam INALTERADOS). hurtFlashTimer só é setado ao tomar dano real
+    // (não no spawn/load), então é um sinal limpo de "tomando dano".
+    if (game->player.characterId == 1 && Player2SpritesReady())
+    {
+        int animState = (game->hurtFlashTimer > 0.0f) ? 2
+                        : (game->player.isMoving ? 1 : 0);
+        DrawPlayer2Model(&game->player, 60.0f, pCol, GetTime(), game->slashAnimTimer, animState);
+    }
+    else if (SpriteAvailable(playerSpr))
     {
         DrawSpriteCentered(playerSpr, game->player.position, (Vector2){ 64.0f, 64.0f }, 0.0f, pCol);
     }

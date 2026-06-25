@@ -100,6 +100,11 @@ Rectangle SettingsSfxVolumeTrack(void);
 void DrawTelaDifficulty(GameState *game, Font font);
 void UpdateTelaDifficulty(GameState *game, Vector2 mouse);
 
+// Tela de SELEÇÃO DE PERSONAGEM (2 cards: Anticorpo / ANTICORPO-V) com preview ao
+// vivo — abre ao iniciar um jogo (antes da dificuldade); confirma e segue o fluxo.
+void DrawTelaCharacterSelect(GameState *game, Font font);
+void UpdateTelaCharacterSelect(GameState *game, Vector2 mouse);
+
 // Verifica (com cache de ~1s) se existe algum arquivo de save.
 // Evita abrir arquivos do disco a cada frame no menu.
 bool AnySaveExistsCached(void);

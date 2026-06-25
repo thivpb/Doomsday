@@ -36,6 +36,10 @@ void UpdateStateMachine(GameState *game)
             UpdateTelaDifficulty(game, g_virtualMouse);
             break;
 
+        case SCREEN_CHARACTER_SELECT:
+            UpdateTelaCharacterSelect(game, g_virtualMouse);
+            break;
+
         case SCREEN_TUTORIAL:
             if (IsKeyPressed(KEY_ESCAPE))
             {
@@ -192,6 +196,10 @@ void DrawStateMachine(GameState *game)
 
         case SCREEN_DIFFICULTY_SELECT:
             DrawTelaDifficulty(game, g_gameFont);
+            break;
+
+        case SCREEN_CHARACTER_SELECT:
+            DrawTelaCharacterSelect(game, g_gameFont);
             break;
 
         case SCREEN_TUTORIAL:

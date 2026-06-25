@@ -162,11 +162,11 @@ bool UpdateButtonsMenu(GameState *game, Vector2 mouse)
     }
 
     // Ações (0 Jogar,1 Carregar,2 Arsenal,3 Skins,4 Tutorial,5 Config,6 Admin,7 Sair)
-    if (menuButtons[0].clicked) // JOGAR -> abre a seleção de dificuldade
+    if (menuButtons[0].clicked) // JOGAR -> seleção de personagem (e depois dificuldade)
     {
         game->pendingDifficulty = game->difficulty; // pré-seleciona a persistida
         game->diffReturnScreen = SCREEN_MENU;
-        game->currentScreen = SCREEN_DIFFICULTY_SELECT;
+        game->currentScreen = SCREEN_CHARACTER_SELECT;
     }
     else if (menuButtons[1].clicked) // CARREGAR JOGO
     {

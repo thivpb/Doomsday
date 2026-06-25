@@ -231,6 +231,15 @@ void LoadPlayerConfig(GameState *game)
         // Categoria "Traseiro" foi removida do jogo: ignora qualquer item
         // traseiro de saves/config antigos (mantém a largura para compat.).
         game->player.cosmetics[COS_BACK] = 0;
+
+        // Personagem jogável: 1 inteiro extra ao final da linha (depois dos
+        // cosméticos). Ausente em saves antigos => 0 (Anticorpo).
+        {
+            char *cend = NULL;
+            long cid = strtol(cursor, &cend, 10);
+            game->player.characterId = (cend != cursor && cid >= 0 && cid < CHARACTER_COUNT)
+                                       ? (int)cid : 0;
+        }
         fclose(f);
     }
     // Sempre garante uma configuração de dificuldade válida (mesmo sem arquivo).
@@ -246,7 +255,9 @@ void SavePlayerConfig(GameState *game)
     // Guarda-roupa modular (mesma linha, na ordem do enum CosmeticSlot).
     for (int s = 0; s < COS_SLOT_COUNT; s++)
         fprintf(f, " %d", game->player.cosmetics[s]);
-    fprintf(f, "\n");
+    // Personagem jogável: campo extra ao FINAL da linha (retrocompatível — saves
+    // antigos sem este valor assumem 0 = Anticorpo no load).
+    fprintf(f, " %d\n", game->player.characterId);
     fclose(f);
 }
 
@@ -871,7 +882,7 @@ void InitGame(GameState *game)
     // Preserva nome, audio, skins, dificuldade e configuracao do modo admin.
     char tempName[16] = "";
     float tempMusicVol = 1.0f, tempSfxVol = 1.0f;
-    int tempSkin = 0, tempWSkin = 0;
+    int tempSkin = 0, tempWSkin = 0, tempChar = 0;
     int tempCos[COS_SLOT_COUNT] = { 0 };   // cosméticos do guarda-roupa (preferência)
     int tempDiff = DIFFICULTY_MEDIUM;
     bool tAdmin = false, tAdminApply = false, tAdminUnlockWeapons = false, tAdminUnlockSkins = false;
@@ -884,6 +895,7 @@ void InitGame(GameState *game)
         tempSfxVol = game->sfxVolume;
         tempSkin = game->player.skinId;
         tempWSkin = game->player.weaponSkinId;
+        tempChar = game->player.characterId;
         for (int s = 0; s < COS_SLOT_COUNT; s++) tempCos[s] = game->player.cosmetics[s];
         tempDiff = game->difficulty;
         tAdmin = game->adminMode; tAdminApply = game->adminApply;
@@ -914,6 +926,7 @@ void InitGame(GameState *game)
     game->sfxVolume = tempSfxVol;
     game->player.skinId = tempSkin;
     game->player.weaponSkinId = tempWSkin;
+    game->player.characterId = tempChar;
     for (int s = 0; s < COS_SLOT_COUNT; s++) game->player.cosmetics[s] = tempCos[s];
 
     // Jogador inicial
@@ -2835,6 +2848,7 @@ void CarregarJogoSlot(GameState *game, int slot)
         float tempSfxVol = game->sfxVolume;
         int tempSkin = game->player.skinId;
         int tempWSkin = game->player.weaponSkinId;
+        int tempChar = game->player.characterId; // personagem escolhido persiste ao carregar
         int tempCos[COS_SLOT_COUNT];   // cosméticos persistem ao carregar um save
         for (int s = 0; s < COS_SLOT_COUNT; s++) tempCos[s] = game->player.cosmetics[s];
         // Preserva o MODO ADMIN/DEV através do memset (igual ao InitGame). Sem isto,
@@ -2855,6 +2869,7 @@ void CarregarJogoSlot(GameState *game, int slot)
         game->sfxVolume = tempSfxVol;
         game->player.skinId = tempSkin;
         game->player.weaponSkinId = tempWSkin;
+        game->player.characterId = tempChar;
         for (int s = 0; s < COS_SLOT_COUNT; s++) game->player.cosmetics[s] = tempCos[s];
         game->adminMode = tAdmin; game->adminApply = tAdminApply;
         game->adminUnlockWeapons = tAdminUnlockWeapons; game->adminUnlockSkins = tAdminUnlockSkins;

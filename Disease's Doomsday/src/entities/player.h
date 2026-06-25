@@ -66,6 +66,11 @@ typedef struct Player
 
     int healthPotions; // Poções de vida
 
+    // Personagem jogável selecionado (visual; sem efeito de balanceamento).
+    // 0 = Anticorpo (procedural, padrão); 1 = ANTICORPO-V (sprites animados).
+    // memset(0) => 0 (back-compat com saves/config antigos).
+    int characterId;
+
     // Skins (visuais, sem efeito de balanceamento)
     int skinId;       // 0 = Padrão, 1 = Médica, 2 = Infectada (paleta/material)
     int weaponSkinId; // 0 = Padrão, 1 = Plasma, 2 = Tóxica

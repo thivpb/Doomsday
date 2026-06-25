@@ -19,6 +19,11 @@ static const char *SPRITE_PATHS[SPRITE_COUNT] = {
     [SPR_PLAYER_MEDIC]    = "Assets/Sprites/Player/anticorpo_medica.png",
     [SPR_PLAYER_INFECTED] = "Assets/Sprites/Player/anticorpo_infectada.png",
 
+    // Player 2 (ANTICORPO-V): folhas animadas (idle/walk 4 frames; hurt 3 frames)
+    [SPR_HERO2_IDLE] = "Assets/Sprites/Player/anticorpo_v_idle.png",
+    [SPR_HERO2_WALK] = "Assets/Sprites/Player/anticorpo_v_walk.png",
+    [SPR_HERO2_HURT] = "Assets/Sprites/Player/anticorpo_v_hurt.png",
+
     // Inimigos — Bactéria
     [SPR_BACT_MELEE]  = "Assets/Sprites/Enemies/Bacteria/melee.png",
     [SPR_BACT_RANGED] = "Assets/Sprites/Enemies/Bacteria/ranged.png",
@@ -215,4 +220,30 @@ bool DrawSpriteOrFallback(SpriteID id, Vector2 center, Vector2 destSize, float r
     // Sem PNG: mantém o desenho procedural atual.
     if (fallbackProc != NULL) fallbackProc(userData);
     return false;
+}
+
+void DrawSpriteFrame(SpriteID id, int frameIndex, int frameCount, Vector2 center,
+                     Vector2 destSize, float rotation, Color tint, bool flipX)
+{
+    if (!SpriteAvailable(id)) return;
+    if (frameCount < 1) frameCount = 1;
+    // Clamp do índice ao range válido (evita recortar fora da textura).
+    if (frameIndex < 0) frameIndex = 0;
+    if (frameIndex >= frameCount) frameIndex = frameCount - 1;
+
+    Texture2D tex = s_sprites[id];
+    float fw = (float)tex.width / (float)frameCount;
+    Rectangle src = { fw * frameIndex, 0.0f, fw, (float)tex.height };
+    if (flipX) src.width = -src.width; // espelha horizontalmente
+
+    Rectangle dst = { center.x, center.y, destSize.x, destSize.y };
+    Vector2 origin = { destSize.x * 0.5f, destSize.y * 0.5f }; // pivô central
+    DrawTexturePro(tex, src, dst, origin, rotation, tint);
+}
+
+bool Player2SpritesReady(void)
+{
+    return SpriteAvailable(SPR_HERO2_IDLE)
+        && SpriteAvailable(SPR_HERO2_WALK)
+        && SpriteAvailable(SPR_HERO2_HURT);
 }

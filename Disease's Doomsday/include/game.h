@@ -86,8 +86,12 @@ typedef enum GameScreen
     SCREEN_WORLD_TRANSITION, // Cutscene/tela educativa entre Mundo 1 (Bactérias) e Mundo 2 (Vírus)
     SCREEN_DIFFICULTY_SELECT, // Seleção de dificuldade (cards) ao iniciar/reiniciar um jogo
     SCREEN_STAGE_COMPLETE,    // Pausa curta entre fim da onda e quiz
-    SCREEN_STAGE_PROLOGUE     // Prólogo breve antes da próxima onda
+    SCREEN_STAGE_PROLOGUE,    // Prólogo breve antes da próxima onda
+    SCREEN_CHARACTER_SELECT   // Seleção do personagem jogável (Anticorpo / ANTICORPO-V)
 } GameScreen;
+
+// Quantidade de personagens jogáveis (0 = Anticorpo procedural; 1 = ANTICORPO-V sprite).
+#define CHARACTER_COUNT 2
 
 // ============================================================================
 // MUNDOS (expansão da campanha)
